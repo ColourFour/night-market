@@ -1,0 +1,4 @@
+project_id = "night-market"
+[functions.night-market]
+# The function verifies private teacher / seat tokens itself on every protected route.
+verify_jwt = false
