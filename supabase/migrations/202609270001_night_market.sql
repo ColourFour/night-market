@@ -2,7 +2,7 @@
 create table public.night_market_state (
   id integer primary key check (id = 1),
   version bigint not null default 0,
-  game jsonb not null default '{"schema":1,"room":null}'::jsonb,
+  game jsonb not null default jsonb_build_object('schema',1,'room',null,'teacherKey',replace(gen_random_uuid()::text,'-','') || substr(replace(gen_random_uuid()::text,'-',''),1,16)),
   updated_at timestamptz not null default now()
 );
 insert into public.night_market_state(id) values (1);

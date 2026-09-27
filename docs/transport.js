@@ -5,6 +5,8 @@ export const demo=new URLSearchParams(location.search).get('demo')==='1';
 export const configured=!!API_BASE;
 const STORE='night-market-rehearsal-v1';
 let cached;
+const responses=new Map();
+window.addEventListener('storage',e=>{if(e.key===STORE)cached=null;});
 function save(s){cached=s;localStorage.setItem(STORE,JSON.stringify(s));}
 function get(){if(!cached){try{cached=JSON.parse(localStorage.getItem(STORE));}catch{}if(!cached?.room)startDemo();}return cached;}
 function call(path,body,token){const s=get(),r=handle(s,{method:body===undefined?'GET':'POST',url:path,headers:{authorization:'Bearer '+token},body},{siteUrl:location.origin+location.pathname+'?demo=1'});if(r.changed)save(r.state);if(r.status>=400)throw new Error(r.body.error);return r;}
@@ -41,5 +43,10 @@ export async function transport(path,options={}){
     try{const r=call(path,options.body===undefined?undefined:JSON.parse(options.body),token);return new Response(r.type==='application/json'?JSON.stringify(r.body):r.body,{status:r.status,headers:{'Content-Type':r.type}});}catch(e){return Response.json({error:e.message},{status:400});}
   }
   if(!configured)return Response.json({error:'Live rooms are not connected yet. Please use Play a rehearsal.'},{status:503});
-  return fetch(API_BASE+path,{...options,signal:AbortSignal.timeout(20000)});
+  const cacheKey=path+'|'+(options.headers?.Authorization||'');
+  const old=responses.get(cacheKey),isGet=!options.method||options.method==='GET';
+  const response=await fetch(API_BASE+path,{...options,headers:{...options.headers,...(isGet&&old?{'If-None-Match':old.etag}:{})},signal:AbortSignal.timeout(30000)});
+  if(response.status===304&&old)return new Response(old.body,{status:200,headers:{'Content-Type':old.type}});
+  if(isGet&&response.ok&&response.headers.get('etag'))responses.set(cacheKey,{etag:response.headers.get('etag'),body:await response.clone().text(),type:response.headers.get('content-type')});
+  return response;
 }

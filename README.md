@@ -13,14 +13,14 @@ Open **https://colourfour.github.io/night-market/**. This is the illustrated onl
 
 For the source deck’s worked example, choose Neon Square and contribute 2 in the first round. Simulated classmates produce counts 6/4/3 and C=26. Your score is 19.2, your best fixed-opponents score is 20.8, and regret is 1.6.
 
-Rehearsal is labelled throughout. It runs only in your browser and cannot accept real classmates. It uses the same rules and transition engine as the live backend. Rehearsal policies are synthetic examples; automatic classmates follow their filed round-by-round actions. Restart rehearsal clears only its browser record. The live connection is deliberately disabled until Supabase is provisioned and tested.
+Rehearsal is labelled throughout. It runs only in your browser and cannot accept real classmates. It uses the same rules and transition engine as the live backend. Rehearsal policies are synthetic examples; automatic classmates follow their filed round-by-round actions. Restart rehearsal clears only its browser record. The live backend is connected and has passed a complete thirteen-client, six-round acceptance test. Rehearsal remains separate from the real classroom.
 
-## Run a real class after the backend is connected
+## Run a real class
 
 Students and teacher open the same website. Students can use mobile data; sharing a Wi-Fi network is unnecessary. Use a browser on the Seewoo board or the Mac connected by HDMI. PowerPoint can link to the website; the browser runs the game.
 
-1. Open **Teacher access**, enter your private teacher key, and enter the thirteen names, one per line. Names are entered privately into the backend, never embedded in the public site or repository.
-2. Create the room. Give each student their founder number and private six-digit seat code. Share the website and short room code. The join selector displays founder numbers, not the full roster.
+1. Open your local `.private/Teacher access.html` file in a browser and choose **Open my teacher dashboard**. A fresh room has been prepared with the existing thirteen-student roster. After a future reset, enter the thirteen names, one per line. Names are stored privately in the backend, never embedded in the public site or repository.
+2. Give each student their founder number and private six-digit seat code. Share the website and short room code. The join selector displays founder numbers, not the full roster.
 3. Project **Open projection view**. Keep the teacher dashboard private because it contains seat codes.
 4. All thirteen students file a prediction, executable policy and fallback. Then open the round.
 5. Students choose one of three venues and contribute 0–4 fresh credits. A submitted decision is locked. Teacher and projection views show submission counts, not hidden choices.
@@ -44,26 +44,27 @@ Source: the existing `Game_Theory_All_Lessons.pptx`, Night Market slides 163–1
 - Only scored points determine the champion; exact ties share the title. Academic marks do not depend on rank.
 - Sandbox changes one rule: external reward, equally funded reward, congestion tax retained by the organiser, or mechanically enforced minimum contribution. Recorded choices are replayed; the exercise does not predict adaptive behaviour. Funding and net totals are explicit. Official results remain unchanged.
 
-## Connect Supabase (one-time technical setup)
+## Hosting and maintenance
 
-The backend files are prepared; an authorised Supabase project is still required. Do not send private keys in chat or commit them to GitHub.
+The site is deployed on GitHub Pages at `ColourFour/night-market`, from `main` / `docs`. The live backend is the **Night Market** project in **C4 Projects**, Singapore region (`ap-southeast-1`). Supabase quoted $0/month at creation, subject to its free-plan limits. Project reference: `fozygymcsxrqtrudtgjw`.
 
-1. Create/select a Supabase project. Authenticate the official Supabase CLI on your own machine, or connect the Supabase integration so setup can be completed for you.
-2. From this folder, link the project and apply `supabase/migrations/202609270001_night_market.sql` with `supabase db push`.
-3. Set Edge Function secrets `NIGHT_MARKET_SITE_URL=https://colourfour.github.io/night-market/` and `NIGHT_MARKET_TEACHER_KEY` to a random 48-character lowercase hexadecimal key. Keep this key privately. Use a local ignored `.env` and `supabase secrets set --env-file .env`. Supabase provides its own server URL and service-role key to the function environment.
-4. Deploy using `supabase functions deploy night-market --no-verify-jwt`. The function implements its own private teacher/student-token authentication; this flag does not make protected routes public. Room lookup and joining are intentionally available without an account.
-5. Set the public `API_BASE` in `docs/config.js` to `https://PROJECT_REF.supabase.co/functions/v1/night-market` (no trailing slash). No secret belongs in that file.
-6. Publish the updated `docs` folder to GitHub Pages from `main` / `docs`. Run the live thirteen-client acceptance test before inviting students. Backend deployment, PostgreSQL migration and mainland mobile connectivity have not yet been verified against a real Supabase project.
+`docs/config.js` contains only the public function URL. The teacher key is generated in the database and remains in private, service-role-only game state. Your local `.private/Teacher access.html` and `.private/live.env` are ignored by Git and have restricted file permissions. Keep them private; the public repository has neither access credentials nor the class roster. An optional `NIGHT_MARKET_TEACHER_KEY` server secret can override the stored key for deliberate recovery/rotation.
 
-The database has no anonymous/authenticated table policies. Only the Edge Function service role can read or mutate game state. A versioned compare-and-swap transaction prevents simultaneous submissions from overwriting each other; a conflicting action reloads and retries. Reset/restore archives are in the same transaction. The server validates every action and strips other founders’ unrevealed choices. Teacher credentials stay in Edge Function secrets. Joining is limited to twelve attempts per seat per five minutes; room lookup has a shared limit. This implementation runs one active class room at a time.
+`supabase/migrations/202609270001_night_market.sql` creates the private tables and atomic commit function. The `night-market` Edge Function implements teacher/student token checks itself; Supabase JWT verification is therefore disabled for this endpoint. Protected routes still require the correct teacher or seat token. Room lookup and joining need no account.
+
+All three tables have row-level security enabled and no browser-facing access policies. Only the service role can access them. Supabase’s informational [“RLS Enabled No Policy” notice](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) is intentional for these server-only tables. A versioned compare-and-swap transaction prevents simultaneous submissions from overwriting each other; a conflict reloads and retries. Reset/restore archives are written in that same transaction. The server validates every action and strips other founders’ unrevealed choices. Joining is limited to twelve attempts per seat per five minutes; room lookup has a shared limit. One active class room is supported at a time.
+
+Waiting clients poll every three seconds only while their page is visible. Conditional responses avoid downloading unchanged game histories repeatedly. All illustration and interface assets are served by the site itself. There are no third-party fonts or analytics.
+
+To maintain the site, update this source and push `main`; GitHub Pages publishes `docs`. Redeploy the Edge Function when server or rules code changes, including its relative dependencies `docs/core.js` and `docs/rules.js`. To reproduce the setup in a new project, apply the migration, deploy the function with its custom authentication, set the public site URL in `NIGHT_MARKET_SITE_URL` if different, and change `docs/config.js` to the new public endpoint. Never put a teacher key or a service key in the website.
 
 Official references: [GitHub Pages publishing](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site), [Supabase Edge Function authentication](https://supabase.com/docs/guides/functions/auth), [Supabase row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security).
 
-## Files, preview and checks
+## Files, preview and verification
 
 One source folder, one README. `docs/` is the public website; `supabase/` holds the migration and server function; `tests/` contains the automated checks. There is no build step or npm dependency to install.
 
-With Node 22+ installed, run `npm run preview` from this folder and open `http://localhost:4173`. Run `npm test` for the source worked example, 90 independent scoring profiles, mechanism accounting, and thirteen concurrent simulated clients completing all six rounds with privacy, invalid/stale/duplicate actions, revision, exports and recovery checks. The simulated store tests compare-and-swap collisions; it is not evidence of a deployed PostgreSQL integration test. The existing USB edition remains available separately for a usable local network.
+With Node 22+ installed, run `npm run preview` from this folder and open `http://localhost:4173`. Run `npm test` for the rehearsal interface action flow, the source worked example, 90 independent scoring profiles, mechanism accounting, and thirteen concurrent simulated clients completing all six rounds with privacy, invalid/stale/duplicate actions, revision, exports and recovery checks. The simulated store tests compare-and-swap collisions. Separately, `tests/live-check.js` was run against the deployed Supabase backend: 223 requests, all six rounds, thirteen concurrent clients, hidden submissions, exports and reset/restore passed. Conditional polling, invalid-token rejection and browser CORS were checked after deployment. The synthetic room was archived, then the real roster was prepared without scores or submissions. Mainland student mobile/VPN connectivity still needs an on-device check. The existing USB edition remains available separately for a usable local network.
 
 ## Artwork
 
