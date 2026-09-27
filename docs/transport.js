@@ -1,16 +1,38 @@
 import {handle,secret} from './core.js';
-import {VENUES} from './rules.js';
+import {VENUES,analyze} from './rules.js';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 export const configured=!!API_BASE;
 const STORE='night-market-rehearsal-v1';
-let cached;
+let cached,initializing=false;
+export let rehearsalSaved=true;
 const responses=new Map();
-window.addEventListener('storage',e=>{if(e.key===STORE)cached=null;});
-function save(s){cached=s;localStorage.setItem(STORE,JSON.stringify(s));}
-function get(){if(!cached){try{cached=JSON.parse(localStorage.getItem(STORE));}catch{}if(!cached?.room)startDemo();}return cached;}
+window.addEventListener('storage',e=>{if(e.key===STORE&&rehearsalSaved)cached=null;});
+function save(s){
+  cached=s;
+  if(initializing)return;
+  // Counterfactual tables are derived from decisions; do not duplicate them in storage.
+  const compact={...s,room:s.room?{...s.room,history:s.room.history.map(({result,...h})=>h)}:null};
+  try{localStorage.setItem(STORE,JSON.stringify(compact));rehearsalSaved=true;}
+  catch{rehearsalSaved=false;} // A full/blocked store must never reject a game action.
+}
+function get(){
+  if(!cached){
+    try{
+      const saved=JSON.parse(localStorage.getItem(STORE));
+      // Earlier versions could leave a half-initialized class when a write failed.
+      if(saved?.schema===1&&saved.room?.players?.length===13&&saved.room.players.every(p=>p.policies?.practice)){
+        saved.room.history.forEach(h=>{h.result=analyze(h.decisions,h.round);});cached=saved;
+      }
+    }catch{}
+    if(!cached)startDemo();
+  }
+  return cached;
+}
 function call(path,body,token){const s=get(),r=handle(s,{method:body===undefined?'GET':'POST',url:path,headers:{authorization:'Bearer '+token},body},{siteUrl:location.origin+location.pathname+'?demo=1'});if(r.changed)save(r.state);if(r.status>=400)throw new Error(r.body.error);return r;}
 export function startDemo(){
+  initializing=true;
+  try {
   cached={schema:1,teacherKey:secret(),room:null};
   call('/api/admin/create',{names:Array.from({length:13},(_,i)=>`Founder ${String(i+1).padStart(2,'0')}`)},cached.teacherKey);
   for(let id=0;id<13;id++){
@@ -18,11 +40,12 @@ export function startDemo(){
     const token=call('/api/join',{code:cached.room.code,id,pin:p.pin}).body.token;
     call('/api/policy',{roundId:cached.room.roundId,policy:`Rehearsal policy: round 1 ${VENUES[id<6?0:id<10?1:2]}, round 2 ${VENUES[(id+2)%3]}, round 3 ${VENUES[id%3]}; contribute 2. No ties to break.`,prediction:'I predict venue counts of 6 / 4 / 3 and a lantern fund of 26 in round 1.',fallback:'Use the venue rule above and contribute 2.'},token);
   }
+  } finally {initializing=false;}
   save(cached);
 }
 export const demoSession=mode=>mode==='teacher'?get().teacherKey:get().room.players[0].token;
 export async function demoControl(action){
-  if(action==='demoReset'){startDemo();location.reload();return;}
+  if(action==='demoReset'){startDemo();return;}
   if(action!=='demoFill')return;
   const r=get().room;
   if(r.phase==='revision'){
