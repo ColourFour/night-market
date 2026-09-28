@@ -22,12 +22,12 @@ for(let round=1;round<=2;round++){
  console.log('Round '+round+': 12 concurrent choices accepted, still hidden before timer.');
  await new Promise(r=>setTimeout(r,Math.max(0,deadline-Date.now()+100)));
  const results=await Promise.all(tokens.map(token=>call('state',undefined,token)));
- assert.ok(results.every(s=>s.status===(round===2?'complete':'revealed')&&s.history.length===round));state=await call('teacher');
+ assert.ok(results.every(s=>s.status===('revealed')&&s.history.length===round));state=await call('teacher');
  for(const x of state.history.at(-1).results){if(!x.bye){totals[x.a]+=x.scoreA;totals[x.b]+=x.scoreB;}}
  state.standings.forEach(p=>assert.equal(p.total,totals[p.id]));
  console.log('Round '+round+': automatic timer reveal and running totals passed.');
 }
-assert.equal(state.status,'complete');assert.equal((await call('export?type=csv')).split('\r\n').length,27);
+await call('admin/end',{roundId:state.roundId});state=await call('teacher');assert.equal(state.status,'complete');assert.equal((await call('export?type=csv')).split('\r\n').length,27);
 const backup=await call('export?type=recovery');await admin('reset',{confirm:code});assert.equal(state.stage,'practice');assert.ok(state.seats.every(p=>!p.joined));
 await call('admin/restore',{backup});state=await call('teacher');assert.equal(state.history.length,2);await admin('reset',{confirm:code});
 fs.writeFileSync('.private/pairs-live-acceptance.json',JSON.stringify({passed:true,requests,players:13,rounds:2,automaticReveal:true,automaticAdvance:true,checkedAt:new Date().toISOString()},null,2));

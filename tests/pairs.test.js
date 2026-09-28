@@ -38,10 +38,10 @@ test('13-player full cycle: timer privacy, simultaneous reveal, scores and histo
   const before=a.call('teacher').body;assert.equal(before.status,'open');assert.equal(before.history.length,round-1);assert.equal(before.submitted,12);assert.ok(!('choices' in before));assert.ok(before.seats.every(s=>!('choice' in s)));
   for(const token of a.tokens){const s=a.call('state',undefined,token).body;assert.ok(!('choices' in s));assert.ok(!('seats' in s));assert.ok(!('token' in s));assert.equal(s.history.length,round-1);assert.ok(s.opponent===null||typeof s.opponent.name==='string');}
   a.now(r.deadline-1);assert.equal(a.call('teacher').body.status,'open');a.now(r.deadline);
-  const after=a.call('teacher').body;assert.equal(after.status,round===13?'complete':'revealed');assert.equal(after.history.length,round);after.standings.forEach(s=>{assert.equal(s.total,expected[s.id]);assert.equal(s.played,played[s.id]);});
+  const after=a.call('teacher').body;assert.equal(after.status,'revealed');assert.equal(after.history.length,round);after.standings.forEach(s=>{assert.equal(s.total,expected[s.id]);assert.equal(s.played,played[s.id]);});
   a.call('teacher');assert.equal(a.get().pairs.history.length,round);
  }
- assert.equal(a.get().pairs.status,'complete');assert.deepEqual(a.get().room,{preserve:'Night Market record'});
+ a.admin('end');assert.equal(a.get().pairs.status,'complete');assert.deepEqual(a.get().room,{preserve:'Night Market record'});
  const csv=a.call('export?type=csv').body;assert.equal(csv.split('\r\n').length,170);
  const backup=a.call('export?type=recovery').body;const reset=a.admin('reset',{confirm:a.get().pairs.code});assert.ok(reset.archive);assert.equal(a.get().pairs.stage,'practice');assert.ok(a.get().pairs.players.every(p=>!p.token&&!p.practice));assert.deepEqual(a.get().room,{preserve:'Night Market record'});
  a.call('admin/restore',{backup});assert.equal(a.get().pairs.history.length,13);a.admin('recoverSeat',{id:0});a.call('state',undefined,a.tokens[0],401);
@@ -58,7 +58,7 @@ test('Deadline reveals absent choices as Take, waits 30 seconds and opens the ne
  a.now(result.nextRoundAt-1);assert.equal(a.call('teacher').body.round,1);
  a.now(result.nextRoundAt);const next=a.call('teacher').body;assert.equal(next.round,2);assert.equal(next.status,'open');assert.equal(next.deadline,result.nextRoundAt+10000);assert.equal(next.submitted,0);
  a.call('choice',{roundId:r.roundId,choice:'take'},a.tokens[0],409);
- a.now(next.deadline);const final=a.call('teacher').body;assert.equal(final.status,'complete');assert.equal(final.history.length,2);assert.equal(final.nextRoundAt,null);
+ a.now(next.deadline);a.admin('end');const final=a.call('teacher').body;assert.equal(final.status,'complete');assert.equal(final.history.length,2);assert.equal(final.nextRoundAt,null);
  assert.deepEqual(final.history[1].results.map(x=>[x.scoreA,x.scoreB]),[[2,2]]);
  a.now(next.deadline+100000);assert.equal(a.call('teacher').body.history.length,2);
 });
@@ -109,4 +109,24 @@ test('Thirteen simultaneous polls open exactly one next round after 30 seconds',
  const a=app(13);a.admin('open');a.now(a.get().pairs.deadline);a.call('teacher');let state=a.get(),version=0;const now=state.pairs.nextRoundAt;
  await Promise.all(a.tokens.map(async token=>{for(let retry=0;retry<30;retry++){const expected=version;const r=handlePairs(state,{url:'/api/pairs/state',method:'GET',headers:{authorization:'Bearer '+token}},{now});await new Promise(resolve=>setTimeout(resolve,Math.random()*3));if(r.changed){if(expected!==version)continue;state=r.state;version++;}assert.equal(r.body.round,2);assert.equal(r.body.status,'open');return;}assert.fail('Retry limit');}));
  assert.equal(version,1);assert.equal(state.pairs.history.length,1);assert.equal(state.pairs.round,2);assert.equal(state.pairs.deadline,now+10000);assert.deepEqual(state.pairs.choices,{});
+});
+test('Unlimited rotation repeats complete 13-student cycles beyond round 100, with cumulative scores and recovery',()=>{
+ const a=app();a.admin('open');
+ for(let round=1;round<=104;round++){
+  const current=a.get().pairs;assert.equal(current.round,round);assert.equal(current.settings.rounds,null);
+  a.now(current.deadline);const result=a.call('teacher').body;assert.equal(result.status,'revealed');assert.equal(result.history.length,round);
+  if(round%13===0){const cycle=result.history.slice(-13),seen=new Set(),byes=Array(13).fill(0);for(const h of cycle)for(const m of h.results){if(m.bye)byes[m.a]++;else seen.add([m.a,m.b].sort((a,b)=>a-b).join(':'));}assert.equal(seen.size,78);assert.ok(byes.every(x=>x===1));assert.ok(result.standings.every(p=>p.total===round/13*24&&p.played===round/13*12));}
+  if(round<104){a.now(result.nextRoundAt);a.call('teacher');}
+ }
+ const before=a.call('teacher').body;a.now(before.nextRoundAt+60000);a.admin('end');assert.equal(a.get().pairs.round,104);assert.equal(a.get().pairs.history.length,104);assert.equal(a.get().pairs.nextRoundAt,null);
+ a.now(before.nextRoundAt+999999);assert.equal(a.call('teacher').body.status,'complete');a.admin('end');assert.equal(a.get().pairs.history.length,104);
+ const backup=a.call('export?type=recovery').body;a.call('admin/restore',{backup});assert.equal(a.get().pairs.history.length,104);a.admin('continue');assert.equal(a.get().pairs.round,105);assert.equal(a.get().pairs.status,'open');assert.deepEqual(a.call('teacher').body.standings,before.standings);
+});
+test('Teacher end reveals exactly once mid-round, rejects students, preserves other modes and supports old finished games',()=>{
+ const a=app(2);a.admin('open');const id=a.get().pairs.roundId;a.call('choice',{roundId:id,choice:'contribute'},a.tokens[0]);
+ a.call('admin/end',{roundId:id},a.tokens[0],401);a.admin('end');const r=a.get().pairs;assert.equal(r.status,'complete');assert.equal(r.history.length,1);assert.equal(r.history[0].results[0].scoreA,0);assert.equal(r.history[0].results[0].scoreB,6);assert.equal(r.deadline,null);assert.equal(r.nextRoundAt,null);
+ a.call('choice',{roundId:id,choice:'take'},a.tokens[1],409);a.admin('end');assert.equal(a.get().pairs.history.length,1);
+ let legacy=a.get();legacy.pairs.settings.rounds=1;legacy.zones={sentinel:'preserve'};
+ const upgraded=handlePairs(legacy,{url:'/api/pairs/teacher',method:'GET',headers:{authorization:'Bearer '+a.key}});assert.equal(upgraded.body.status,'complete');assert.equal(upgraded.body.settings.rounds,null);assert.deepEqual(upgraded.state.zones,legacy.zones);
+ const continued=handlePairs(upgraded.state,{url:'/api/pairs/admin/continue',method:'POST',body:{roundId:id},headers:{authorization:'Bearer '+a.key}});assert.equal(continued.state.pairs.round,2);assert.equal(continued.state.pairs.history.length,1);
 });

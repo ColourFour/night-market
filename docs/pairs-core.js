@@ -13,8 +13,7 @@ export function pairings(count,round,mode='rotate'){
  return Array.from({length:ring.length/2},(_,i)=>[ring[i],ring[ring.length-1-i]]);
 }
 function settings(b){
- const rounds=Number(b.rounds),seconds=Number(b.seconds),rotation=b.rotation||'rotate',missing='take';
- if(!Number.isInteger(rounds)||rounds<1||rounds>100)fail('Choose 1–100 rounds.');
+ const rounds=null,seconds=Number(b.seconds),rotation=b.rotation||'rotate',missing='take';
  if(!Number.isInteger(seconds)||seconds<5||seconds>600)fail('Choose a timer from 5 to 600 seconds.');
  if(!['rotate','fixed'].includes(rotation)||!['pause','take'].includes(missing))fail('Choose valid round settings.');
  return {rounds,seconds,rotation,missing};
@@ -44,7 +43,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    return {a,b,choiceA:r.choices[a].choice,choiceB:r.choices[b].choice,automaticA:!!r.choices[a].automatic,automaticB:!!r.choices[b].automatic,scoreA,scoreB};
   });
   r.history.push({round:r.round,id:r.roundId,revealedAt:now,results});
-  r.status=r.round===r.settings.rounds?'complete':'revealed';r.nextRoundAt=r.status==='revealed'?now+30000:null;r.clockHeld=false;changed=true;
+  r.status='revealed';r.nextRoundAt=now+30000;r.clockHeld=false;changed=true;
  }
  function advance(r){
   r.round++;r.status='open';r.choices={};r.deadline=now+r.settings.seconds*1000;r.roundId=pairSecret();r.nextRoundAt=null;r.clockHeld=false;changed=true;
@@ -52,7 +51,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
  function expire(r){
   // Upgrade an existing class in place, preserving every recorded decision and score.
   if(r.flowVersion!==2){r.flowVersion=2;r.settings.missing='take';r.clockHeld=false;r.nextRoundAt=r.status==='revealed'?now+30000:null;changed=true;}
-  if(r.status==='revealed'&&r.round===r.settings.rounds){r.status='complete';r.nextRoundAt=null;changed=true;return;}
+  if(r.settings.rounds!==null){r.settings.rounds=null;changed=true;}
   if(r.status==='open'&&now>=r.deadline||r.status==='paused'&&!r.clockHeld){reveal(r);return;}
   // Give a full decision window when clients reconnect; never skip unseen rounds.
   if(r.status==='revealed'&&!r.clockHeld&&r.nextRoundAt!==null&&now>=r.nextRoundAt)advance(r);
@@ -77,7 +76,9 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   else if(!['/api/pairs/lookup','/api/pairs/join','/api/pairs/lobby'].includes(url.pathname))fail('Not found.',404);
   if(route==='GET /api/pairs/lobby')return response(state.pairs?{code:state.pairs.code,players:state.pairs.players.map(p=>({id:p.id,name:p.name,joined:!!p.token}))}:{empty:true,players:[]});
   const extending=route==='POST /api/pairs/admin/extend'&&state.pairs?.status==='open'&&b.roundId===state.pairs.roundId;
-  if(state.pairs&&!extending)expire(state.pairs);
+  // An explicit stop wins over an elapsed inter-round countdown: do not start a phantom round.
+  const ending=route==='POST /api/pairs/admin/end'&&state.pairs&&b.roundId===state.pairs.roundId;
+  if(state.pairs&&!extending&&!ending)expire(state.pairs);
   clockChanged=changed;checkpoint=structuredClone(state);
   if(route==='GET /api/pairs/teacher')return response(state.pairs?view(room(),null,true):{empty:true,serverNow:now,defaultRoster:state.room?.players.map(p=>p.name)||Array.from({length:13},(_,i)=>`Student ${i+1}`)});
   if(route==='POST /api/pairs/lookup'){
@@ -134,9 +135,9 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    if(action==='restore'){
     const recovered=structuredClone(b.backup);
     if(recovered?.kind!=='pairs-recovery'||recovered.version!==1)fail('Choose a paired-game recovery file.');
-    const r=recovered.room;if(!r||!Array.isArray(r.players)||!Array.isArray(r.history)||r.history.length>100||!r.choices||typeof r.roundId!=='string'||!Number.isInteger(r.round)||r.round<1)fail('Invalid recovery file.');
+    const r=recovered.room;if(!r||!Array.isArray(r.players)||!Array.isArray(r.history)||!r.choices||typeof r.roundId!=='string'||!Number.isInteger(r.round)||r.round<1)fail('Invalid recovery file.');
     rosterNames(r.players.map(p=>p.name));r.settings=settings(r.settings);
-    if(r.round>r.settings.rounds||!['waiting','open','paused','revealed','complete'].includes(r.status)||!(/^[A-Z2-9]{5}$/).test(r.code))fail('Invalid recovery state.');
+    if(!['waiting','open','paused','revealed','complete'].includes(r.status)||!(/^[A-Z2-9]{5}$/).test(r.code))fail('Invalid recovery state.');
     r.players.forEach((p,i)=>{if(p.id!==i||!/^\d{6}$/.test(p.pin)||(p.token!==null&&!/^[a-f0-9]{48}$/.test(p.token)))fail('Invalid recovery roster.');});
     if(r.stage!==undefined&&!['practice','class'].includes(r.stage))fail('Invalid recovery phase.');
     for(const p of r.players)if(p.practice){const [score,botScore]=pairPayoff(p.practice.choice,p.practice.bot);p.practice={choice:p.practice.choice,bot:p.practice.bot,score,botScore};}
@@ -158,13 +159,20 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
     if(r.stage!=='practice')fail('Classmates are already unlocked.',409);
     r.stage='class';r.status='waiting';r.round=1;r.roundId=pairSecret();r.history=[];r.choices={};r.deadline=null;r.nextRoundAt=null;r.clockHeld=false;
    }else if(action==='configure'){
-    if(r.status!=='waiting'||r.history.length)fail('Set rounds and timer before the first round.');r.settings=settings(b);
+    if(r.status!=='waiting'||r.history.length)fail('Set the timer and opponents before the first round.');r.settings=settings(b);
    }else if(action==='open'){
     if(r.stage==='practice')fail('Unlock classmates before starting the round.',409);if(r.status!=='waiting')fail('Advance to a new round first.');r.status='open';r.deadline=now+r.settings.seconds*1000;r.clockHeld=false;
    }else if(action==='extend'){
     if(!['paused','open'].includes(r.status))fail('Choices are already revealed. Extra decision time must be added before reveal.');r.status='open';r.deadline=Math.max(now,r.deadline||now)+30000;r.clockHeld=false;r.flowVersion=2;r.settings.missing='take';
    }else if(action==='reveal'){
     if(!['paused','open'].includes(r.status))fail('This round cannot be revealed again.');reveal(r);
+   }else if(action==='end'){
+    if(r.stage==='practice'||!['open','paused','revealed','complete'].includes(r.status))fail('Start class play before ending the game.',409);
+    if(['open','paused'].includes(r.status))reveal(r);
+    r.status='complete';r.deadline=null;r.nextRoundAt=null;r.clockHeld=false;r.settings.rounds=null;
+   }else if(action==='continue'){
+    if(r.status!=='complete')fail('This game has not ended.',409);
+    r.settings.rounds=null;advance(r);
    }else if(action==='advance'){
     if(r.status!=='revealed')fail('Reveal this round first.');
     advance(r);

@@ -10,7 +10,7 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
  const Form=globalThis.FormData;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=zones1');
+  const transport=await import('../docs/pairs-transport.js?v=unlimited1');
   const teacher=()=>transport.api('teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async action=>listeners.get('click')({target:{closest:()=>({dataset:{action,round:(html().match(/data-round="([^"]+)"/)||[])[1]}})}});
@@ -26,7 +26,7 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
   assert.equal((await teacher()).history.length,0);await click('demoTeacher');await click('reveal');
   assert.equal((await teacher()).history.length,1);await click('demoStudent');assert.match(html(),/Your class total/);assert.match(html(),/Class leaderboard/);assert.match(html(),/\+5/);assert.match(html(),/Next round starts in/);
   await click('demoTeacher');await click('advance');assert.equal((await teacher()).round,2);assert.equal((await teacher()).status,'open');await click('demoStudent');assert.match(html(),/You sit out/);
-  await click('demoReset');assert.equal((await teacher()).round,1);assert.equal((await teacher()).history.length,0);
+  await click('demoTeacher');await click('end');assert.match(html(),/Final standings/);assert.match(html(),/Continue playing/);assert.equal((await teacher()).history.length,2);await click('continue');assert.equal((await teacher()).round,3);await click('demoReset');assert.equal((await teacher()).round,1);assert.equal((await teacher()).history.length,0);
   await click('showReset');const code=(await teacher()).code;globalThis.FormData=class{constructor(){return new Map([['confirm',code]]);}};
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'reset'}});assert.equal((await teacher()).stage,'practice');assert.ok((await teacher()).seats.every(p=>!p.joined));assert.match(html(),/Unlock classmates/);
  }finally{globalThis.setInterval=interval;globalThis.FormData=Form;}
