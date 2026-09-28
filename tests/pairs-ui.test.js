@@ -15,7 +15,8 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
   const html=()=>elements.get('#app').innerHTML;
   const click=async action=>listeners.get('click')({target:{closest:()=>({dataset:{action,round:(html().match(/data-round="([^"]+)"/)||[])[1]}})}});
   assert.match(html(),/Start timed round/);assert.match(elements.get('#demo-tools').innerHTML,/Temporary/);
-  await click('open');await click('demoStudent');assert.match(html(),/Student 13/);assert.match(html(),/Lock my choice/);
+  assert.match(html(),/Reset game/);await click('showReset');assert.match(html(),/Confirm reset/);assert.equal((await teacher()).round,1);await click('cancelReset');assert.doesNotMatch(html(),/Confirm reset/);
+  await click('open');await click('demoStudent');assert.doesNotMatch(html(),/data-action="showReset"/);assert.match(html(),/Student 13/);assert.match(html(),/Lock my choice/);
   globalThis.FormData=class{constructor(){return new Map([['choice','contribute']]);}};
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'choice',dataset:{round:(await teacher()).roundId}}});
   assert.match(html(),/Your choice is locked/);await click('simulate');assert.equal((await teacher()).submitted,12);
@@ -23,5 +24,7 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
   assert.equal((await teacher()).history.length,1);await click('demoStudent');assert.match(html(),/5 points/);assert.match(html(),/\+5/);assert.match(html(),/Next round starts in/);
   await click('demoTeacher');await click('advance');assert.equal((await teacher()).round,2);assert.equal((await teacher()).status,'open');await click('demoStudent');assert.match(html(),/You sit out/);
   await click('demoReset');assert.equal((await teacher()).round,1);assert.equal((await teacher()).history.length,0);
+  await click('showReset');const code=(await teacher()).code;globalThis.FormData=class{constructor(){return new Map([['confirm',code]]);}};
+  await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'reset'}});assert.equal((await teacher()).empty,true);assert.match(html(),/Create paired game/);
  }finally{globalThis.setInterval=interval;globalThis.FormData=Form;}
 });
