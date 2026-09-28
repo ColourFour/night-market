@@ -1,4 +1,4 @@
-import {handlePairs,pairSecret} from './pairs-core.js';
+import {handlePairs,pairSecret} from './pairs-core.js?v=lobby1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
@@ -21,5 +21,5 @@ export async function api(path,body,token){
  if(demo)return request(path,body,token).body;
  const response=await fetch(API_BASE+'/api/pairs/'+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(30000)});
  const value=response.headers.get('content-type')?.includes('json')?await response.json():await response.text();
- if(!response.ok)throw Error(value.error||'Connection interrupted. Please retry.');return value;
+ if(!response.ok)throw Object.assign(Error(value.error||'Connection interrupted. Please retry.'),{status:response.status});return value;
 }

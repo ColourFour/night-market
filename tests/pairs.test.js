@@ -63,3 +63,19 @@ test('Concurrent clock polls commit the reveal only once',async()=>{
  await Promise.all(base.tokens.map(async token=>{for(let i=0;i<30;i++){const v=version;const response=handlePairs(state,{url:'/api/pairs/state',method:'GET',headers:{authorization:'Bearer '+token}},{now});await new Promise(r=>setTimeout(r,Math.random()*3));if(response.changed){if(v!==version)continue;state=response.state;version++;}assert.equal(response.status,200);return;}assert.fail('Retry limit');}));
  assert.equal(state.pairs.history.length,1);assert.equal(version,1);
 });
+test('Public name selection exposes only roster and protects claimed seats',()=>{
+ let state={teacherKey:pairSecret(),pairs:null};const teacher=state.teacherKey;
+ function call(path,body,token='',status=200){const r=handlePairs(state,{url:'/api/pairs/'+path,method:body===undefined?'GET':'POST',headers:{authorization:'Bearer '+token},body});assert.equal(r.status,status,JSON.stringify(r.body));if(r.changed)state=r.state;return r.body;}
+ assert.deepEqual(call('lobby'),{empty:true,players:[]});
+ call('admin/create',{names:['A','B','C'],rounds:3,seconds:30},teacher);
+ const initial=call('lobby');assert.equal(initial.players.length,3);assert.deepEqual(Object.keys(initial).sort(),['code','players']);assert.deepEqual(Object.keys(initial.players[0]).sort(),['id','joined','name']);
+ const a=call('join',{code:initial.code,id:0}).token;
+ assert.ok(a);assert.equal(call('lobby').players[0].joined,true);
+ call('join',{code:initial.code,id:0},'',409);assert.equal(call('state',undefined,a).me.name,'A');
+ call('teacher',undefined,'',401);call('admin/open',{roundId:state.pairs.roundId},'',401);
+ call('join',{code:'WRONG',id:1},'',404);
+ call('admin/recoverSeat',{roundId:state.pairs.roundId,id:0},teacher);call('state',undefined,a,401);
+ assert.equal(call('lobby').players[0].joined,false);assert.ok(call('join',{code:initial.code,id:0}).token);
+ const b=call('join',{code:initial.code,id:1}).token;call('join',{code:initial.code,id:2});
+ const lobby=call('state',undefined,b);assert.equal(lobby.players.filter(p=>p.joined).length,3);assert.equal(lobby.status,'waiting');
+});

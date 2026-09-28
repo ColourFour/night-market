@@ -57,7 +57,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   return rows.map(x=>({...x,rank:1+rows.filter(y=>y.total>x.total).length}));
  }
  function view(r,p=null,isTeacher=false){
-  const standingsRows=standings(r),out={code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,deadline:r.deadline,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
+  const standingsRows=standings(r),out={code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,deadline:r.deadline,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name,joined:!!p.token})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
   if(p){const pair=pairs(r).find(x=>x.includes(p.id)),other=pair.find(id=>id!==p.id);out.me={id:p.id,name:p.name,...standingsRows.find(x=>x.id===p.id)};out.opponent=other===null?null:{id:other,name:r.players[other].name};out.myChoice=publicChoice(r.choices[p.id]);}
   if(isTeacher){out.seats=r.players.map(p=>({id:p.id,name:p.name,pin:p.pin,joined:!!p.token,submitted:!!r.choices[p.id],bye:!active(r).includes(p.id)}));out.siteUrl=siteUrl;}
   return out;
@@ -67,7 +67,8 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   // Check authorization before a request can advance the server clock or reveal data.
   if(url.pathname.startsWith('/api/pairs/admin/')||url.pathname==='/api/pairs/teacher'||url.pathname==='/api/pairs/export')teacher();
   else if(['/api/pairs/state','/api/pairs/choice'].includes(url.pathname))player();
-  else if(!['/api/pairs/lookup','/api/pairs/join'].includes(url.pathname))fail('Not found.',404);
+  else if(!['/api/pairs/lookup','/api/pairs/join','/api/pairs/lobby'].includes(url.pathname))fail('Not found.',404);
+  if(route==='GET /api/pairs/lobby')return response(state.pairs?{code:state.pairs.code,players:state.pairs.players.map(p=>({id:p.id,name:p.name,joined:!!p.token}))}:{empty:true,players:[]});
   if(state.pairs)expire(state.pairs);
   clockChanged=changed;checkpoint=structuredClone(state);
   if(route==='GET /api/pairs/teacher')return response(state.pairs?view(room(),null,true):{empty:true,serverNow:now,defaultRoster:state.room?.players.map(p=>p.name)||Array.from({length:13},(_,i)=>`Student ${i+1}`)});
@@ -77,7 +78,9 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   }
   if(route==='POST /api/pairs/join'){
    const r=room();if(b.code!==r.code)fail('Room code not found.',404);
-   const p=r.players.find(p=>p.id===b.id);if(!p||p.pin!==b.pin)fail('Check your private seat code with your teacher.',401);
+   const p=r.players.find(p=>p.id===b.id);if(!p)fail('Choose your name from the list.');
+   if(b.pin!==undefined){if(p.pin!==b.pin)fail('Check your private seat code with your teacher.',401);}
+   else if(p.token)fail('This name has already joined. Ask your teacher to free the seat if it is yours.',409);
    p.token=pairSecret();changed=true;return response({token:p.token});
   }
   if(route==='GET /api/pairs/state')return response(view(room(),player()));
