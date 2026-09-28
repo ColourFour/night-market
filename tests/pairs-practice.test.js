@@ -22,7 +22,7 @@ test('13 students: one robot attempt, teacher unlock, zero class totals, rejoin 
  }
  assert.equal(call('teacher').body.seats.filter(p=>p.practiced).length,13);
  assert.equal(call('teacher').body.standings.reduce((sum,p)=>sum+p.total,0),state.pairs.players.reduce((sum,p)=>sum+p.practice.score,0));
- const old=tokens[0],oldPractice=structuredClone(state.pairs.players[0].practice);tokens[0]=call('join',{code,id:0},'').body.token;
+ const old=tokens[0],oldPractice=structuredClone(state.pairs.players[0].practice);call('join',{code,id:0},'',409);tokens[0]=call('join',{code,id:0},old).body.token;
  call('state',undefined,old,401);assert.deepEqual(call('state',undefined,tokens[0]).body.me.practice,oldPractice);
  call('admin/unlock',{roundId:state.pairs.roundId});assert.ok(call('teacher').body.standings.every(p=>p.total===0));assert.equal(state.pairs.stage,'class');
  call('admin/unlock',{roundId:state.pairs.roundId},key,409);

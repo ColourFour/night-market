@@ -88,7 +88,8 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    const r=room();if(b.code!==r.code)fail('Room code not found.',404);
    const p=r.players.find(p=>p.id===b.id);if(!p)fail('Choose your name from the list.');
    if(b.pin!==undefined){if(p.pin!==b.pin)fail('Check your private seat code with your teacher.',401);}
-   // Name-based classroom sign-in also reconnects a student's seat on a new device.
+   else if(p.token&&p.token!==token)fail('This name is already joined on another device. Ask your teacher to recover the seat, or use Choose another name on the original device first.',409);
+   // Only an authenticated existing seat may reconnect without first releasing it.
    p.token=pairSecret();changed=true;return response({token:p.token});
   }
   if(route==='POST /api/pairs/leave'){player().token=null;changed=true;return response({ok:true});}

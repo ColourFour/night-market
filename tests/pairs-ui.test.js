@@ -10,7 +10,7 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
  const Form=globalThis.FormData;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=practice1');
+  const transport=await import('../docs/pairs-transport.js?v=practice2');
   const teacher=()=>transport.api('teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async action=>listeners.get('click')({target:{closest:()=>({dataset:{action,round:(html().match(/data-round="([^"]+)"/)||[])[1]}})}});

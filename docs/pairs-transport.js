@@ -1,4 +1,4 @@
-import {handlePairs,pairSecret} from './pairs-core.js?v=practice1';
+import {handlePairs,pairSecret} from './pairs-core.js?v=practice2';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';

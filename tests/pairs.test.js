@@ -97,7 +97,7 @@ test('Public name selection exposes only roster and rotates sessions when rejoin
  const initial=call('lobby');assert.equal(initial.players.length,3);assert.deepEqual(Object.keys(initial).sort(),['code','players']);assert.deepEqual(Object.keys(initial.players[0]).sort(),['id','joined','name']);
  let a=call('join',{code:initial.code,id:0}).token;
  assert.ok(a);assert.equal(call('lobby').players[0].joined,true);
- const old=a;a=call('join',{code:initial.code,id:0}).token;call('state',undefined,old,401);assert.equal(call('state',undefined,a).me.name,'A');
+ const old=a;call('join',{code:initial.code,id:0},'',409);a=call('join',{code:initial.code,id:0},old).token;call('state',undefined,old,401);assert.equal(call('state',undefined,a).me.name,'A');
  call('teacher',undefined,'',401);call('admin/open',{roundId:state.pairs.roundId},'',401);
  call('join',{code:'WRONG',id:1},'',404);
  call('admin/recoverSeat',{roundId:state.pairs.roundId,id:0},teacher);call('state',undefined,a,401);
