@@ -1,3 +1,4 @@
+import {handlePairs} from '../../../docs/pairs-core.js';
 import {handle} from '../../../docs/core.js';
 const env=(name:string)=>Deno.env.get(name)||'';
 const site=env('NIGHT_MARKET_SITE_URL')||'https://colourfour.github.io/night-market/';
@@ -33,10 +34,10 @@ Deno.serve(async req=>{
       const bytes=new Uint8Array(size);let offset=0;for(const part of chunks){bytes.set(part,offset);offset+=part.length;}
       try{body=JSON.parse(new TextDecoder().decode(bytes)||'{}');}catch{return reply(400,{error:'Invalid JSON.'});}
     }
-    if(url==='/api/join'||url==='/api/lookup'){
+    if(['/api/join','/api/lookup','/api/pairs/join','/api/pairs/lookup'].includes(url)){
       // Seat-scoped join limits cannot be bypassed by changing a browser header.
-      const key=url==='/api/join'?'seat:'+String(body?.id):'lookup';
-      const ok=await query('rpc/night_market_limit',{bucket_key:await hash(key),max_hits:url==='/api/join'?12:80,window_seconds:300});
+      const key=(url.startsWith('/api/pairs/')?'pairs:':'market:')+(url.endsWith('/join')?'seat:'+String(body?.id):'lookup');
+      const ok=await query('rpc/night_market_limit',{bucket_key:await hash(key),max_hits:url.endsWith('/join')?12:80,window_seconds:300});
       if(!ok)return reply(429,{error:'Too many joining attempts. Wait five minutes or ask your teacher.'});
     }
     for(let attempt=0;attempt<30;attempt++){
@@ -45,9 +46,9 @@ Deno.serve(async req=>{
       const state={...rows[0].game};
       if(teacherOverride)state.teacherKey=teacherOverride;
       if(!/^[a-f0-9]{48}$/.test(state.teacherKey))return reply(503,{error:'Teacher setup is not complete.'});
-      const result=handle(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
+      const result=(url.startsWith('/api/pairs/')?handlePairs:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
       if(!result.changed){
-        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')){
+        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')){
           const etag='"'+rows[0].version+'"';
           if(req.headers.get('if-none-match')?.replace(/^W\//,'')===etag)return new Response(null,{status:304,headers:{...cors,ETag:etag}});
           const response=reply(result.status,result.body,result.type);response.headers.set('ETag',etag);return response;

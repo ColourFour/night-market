@@ -58,6 +58,6 @@ test('Full or blocked storage: start, six rounds, reset, recovery and compact sa
   const repaired=await import('../docs/transport.js?partial-test');
   const repairResult=await repaired.transport('/api/teacher',{headers:{Authorization:'Bearer '+repaired.demoSession('teacher')}});
   assert.equal((await repairResult.json()).players.filter(p=>p.policies.practice).length,13);
-  allowStorage=false;const previousWrites=writes;await click('startDemo');assert.equal(location.href,'./?demo=1');assert.equal(writes,previousWrites,'Entering rehearsal does not require a storage write');
+  allowStorage=false;const previousWrites=writes;await click('startDemo');assert.equal(location.href,'./market.html?demo=1');assert.equal(writes,previousWrites,'Entering rehearsal does not require a storage write');
  }finally{globalThis.setInterval=interval;}
 });

@@ -102,7 +102,7 @@ export function handle(input,req,{siteUrl=''}={}) {
           state.room={code,phase:'practice',status:'waiting',round:1,roundId:secret(),submissions:{},history:[],players:names.map((name,id)=>({id,name:textValue(name,'a student name',60),alias:`Founder ${String(id+1).padStart(2,'0')}`,pin:randomInt(100000,1000000).toString(),token:null,policies:{},reflections:{},overrides:{practice:false,scored:false}}))};return {ok:true};
         }));
         if(action==='restore')return respond(200,mutate(()=>{
-          const restored=valid(clone(b.backup));archive=clone(state);restored.teacherKey=state.teacherKey;state=restored;recoveryNotice='Recovery file loaded. Check the round and ask students to refresh.';return {ok:true};
+          const restored=valid(clone(b.backup));archive=clone(state);restored.teacherKey=state.teacherKey;restored.pairs=state.pairs;state=restored;recoveryNotice='Recovery file loaded. Check the round and ask students to refresh.';return {ok:true};
         }));
         const r=room();guard(r,b);
         return respond(200,mutate(()=>{
