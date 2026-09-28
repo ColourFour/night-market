@@ -1,3 +1,4 @@
+import {handleZones} from '../../../docs/zones-core.js';
 import {handlePairs} from '../../../docs/pairs-core.js';
 import {handle} from '../../../docs/core.js';
 const env=(name:string)=>Deno.env.get(name)||'';
@@ -46,9 +47,9 @@ Deno.serve(async req=>{
       const state={...rows[0].game};
       if(teacherOverride)state.teacherKey=teacherOverride;
       if(!/^[a-f0-9]{48}$/.test(state.teacherKey))return reply(503,{error:'Teacher setup is not complete.'});
-      const result=(url.startsWith('/api/pairs/')?handlePairs:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
+      const result=(url.startsWith('/api/zones/')?handleZones:url.startsWith('/api/pairs/')?handlePairs:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
       if(!result.changed){
-        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')){
+        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')&&!url.startsWith('/api/zones/')){
           const etag='"'+rows[0].version+'"';
           if(req.headers.get('if-none-match')?.replace(/^W\//,'')===etag)return new Response(null,{status:304,headers:{...cors,ETag:etag}});
           const response=reply(result.status,result.body,result.type);response.headers.set('ETag',etag);return response;

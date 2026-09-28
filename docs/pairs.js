@@ -1,8 +1,9 @@
+import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,clearZones} from './zones-ui.js?v=zones1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,resetDemo} from './pairs-transport.js?v=practice2';
+import {api,demo,saved,demoToken,simulate,simulateZones,resetDemo} from './pairs-transport.js?v=zones1';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false;
+let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
 const hash=new URLSearchParams(location.hash.slice(1));
 if(hash.has('teacher')){role='teacher';token=hash.get('teacher')||session.getItem('night-teacher')||'';if(token)session.setItem('night-teacher',token);history.replaceState(null,'',location.pathname+location.search+'#teacher');}
 if(demo){role='teacher';token=demoToken(role);}
@@ -14,7 +15,7 @@ function matrix(){return `<details class="matrix"><summary>The payoff matrix</su
 function settingsForm(s={rounds:13,seconds:30,rotation:'rotate',missing:'take'}){return `<div class="settings-grid"><label>Number of rounds<input name="rounds" type="number" min="1" max="100" value="${s.rounds}" required></label><label>Seconds per round<input name="seconds" type="number" min="5" max="600" value="${s.seconds}" required></label><label>Opponents<select name="rotation"><option value="rotate" ${s.rotation==='rotate'?'selected':''}>Rotate through everyone</option><option value="fixed" ${s.rotation==='fixed'?'selected':''}>Keep the same pairs</option></select></label></div><p class="muted">An odd-sized class has one student sitting out each round, earning 0 points. Rotation gives everyone one sit-out per full cycle. For 13 students, choose 13 rounds to play everyone once.</p>`;}
 function home(){
  if(role==='teacher')return `<section class="narrow panel"><h1>Teacher access</h1><p>Open your private access link from our chat.</p><form id="teacher-login"><label>Private teacher key<input name="key" type="password" required></label><button>Open teacher dashboard</button></form></section>`;
- return `<section class="join-scene"><div class="join-card"><div class="eyebrow">Contribute / Take</div><h1>Join your class.</h1><p>Choose yourself, learn the rules and try one round against a random robot. Then your teacher will unlock play with classmates.</p>${roster.length?`<form id="join-form"><label for="student-name">Choose yourself</label><select id="student-name" name="id" required><option value="" disabled selected>Select your name</option>${roster.map(p=>`<option value="${p.id}" >${esc(p.name)}${p.joined?' · joined':''}</option>`).join('')}</select><button>Join your class →</button></form><small>Your browser remembers your seat. To switch devices, leave on the old device or ask your teacher to recover your seat.</small>`:`<p class="join-status" role="status">${lobbyError?'Connecting to your class. Retrying…':lobbyLoaded?'Your teacher is getting the class ready. Keep this page open.':'Finding your class…'}</p>`}</div></section>`;
+ return `<section class="join-scene"><div class="join-card"><div class="eyebrow">Classroom Strategy Lab</div><h1>Join your class.</h1><p>Choose your name, then choose a game. Make a prediction, test your strategy and learn from the class.</p>${roster.length?`<form id="join-form"><label for="student-name">Choose yourself</label><select id="student-name" name="id" required><option value="" disabled selected>Select your name</option>${roster.map(p=>`<option value="${p.id}" >${esc(p.name)}${p.joined?' · joined':''}</option>`).join('')}</select><button>Join your class →</button></form><small>Your browser remembers your seat. To switch devices, leave on the old device or ask your teacher to recover your seat.</small>`:`<p class="join-status" role="status">${lobbyError?'Connecting to your class. Retrying…':lobbyLoaded?'Your teacher is getting the class ready. Keep this page open.':'Finding your class…'}</p>`}</div></section>`;
 }
 function lobby(){
  const joined=state.players.filter(p=>p.joined).length,total=state.players.length;
@@ -56,17 +57,20 @@ function student(){
  if(results)return title()+totalStrip()+roundOutcome()+(state.status==='revealed'?`<p class="next-round-note">${state.clockHeld?'Your teacher has paused before the next round.':'Next round starts in <strong id="next-countdown">30s</strong>.'}</p>`:'')+standings()+historyView+leaveButton();
  return title()+totalStrip()+`<section class="duel panel"><div class="duel-people"><div><small>You</small><h2>${esc(state.me.name)}</h2></div><span class="versus">${state.opponent?'vs':'—'}</span><div><small>${state.opponent?'Your opponent':'This round'}</small><h2>${state.opponent?esc(state.opponent.name):'You sit out'}</h2></div></div>${timer()}${!state.opponent?'<p>Follow the results. Your next opponent appears when the next round begins.</p>':state.myChoice?`<div class="locked-choice">Your choice is locked: <strong>${label(state.myChoice.choice)}</strong><p>Both choices reveal when time runs out.</p></div>`:state.status==='open'?choiceForm('choice','Lock my choice'):'<p>Wait for your teacher to resume the timer.</p>'}</section>${historyView}${matrix()}${leaveButton()}`;
 }
+function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p><div class="game-cards"><button type="button" class="game-card game-pairs" data-action="modePairs"><span class="game-number">01</span><h2>Contribute / Take</h2><p>Two people. Two choices.<br>Trust, incentives and shared consequences.</p><strong>Enter the night market →</strong></button><button type="button" class="game-card game-zones" data-action="modeZones"><span class="game-number">02</span><h2>Economic Zones</h2><p>One hundred advertisements. Five zones.<br>Compete for attention across a future city.</p><strong>Enter the city →</strong></button><button type="button" class="game-card game-coming" disabled aria-disabled="true"><span class="game-number">03</span><h2>Next experiment</h2><p>A new strategic world is taking shape.</p><strong>Under construction</strong></button></div>${role==='student'?leaveButton():''}</section>`;}
 function render(){
+ const focused=document.activeElement,focusName=focused?.name,focusForm=focused?.form?.id,focusPosition=focused?.selectionStart;
  const forms=new Map();document.querySelectorAll('form').forEach(f=>{forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
  const opened=[...document.querySelectorAll('details[open][data-key]')].map(e=>e.dataset.key);
- $('#app').innerHTML=!state?home():role==='teacher'?(state.empty?create():teacher()):student();
+ $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
  for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
  $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
- updateClock();
+ updateClock();updateZonesTotals();
+ if(focusName&&focusForm){const form=[...document.querySelectorAll('form')].find(f=>f.id===focusForm),el=form&&[...form.elements].find(e=>e.name===focusName);if(el){el.focus?.({preventScroll:true});if(el.type==='text'||el.tagName==='TEXTAREA')try{el.setSelectionRange(focusPosition,focusPosition);}catch{}}}
 }
 function updateClock(){
- if(!state||state.empty)return;
+ if(!state||state.empty||selectedMode!=='pairs')return;
  const deadline=state.status==='open'?state.deadline:state.status==='revealed'?state.nextRoundAt:null;
  const left=deadline?Math.max(0,Math.ceil((deadline-(Date.now()+clockOffset))/1000)):state.status==='waiting'?state.settings.seconds:0;
  for(const id of ['#countdown','#next-countdown']){const el=$(id);if(el&&el.textContent!==left+'s')el.textContent=left+'s';}
@@ -87,16 +91,18 @@ async function refresh(force=false){
  }
 
  refreshing=true;
- try{const started=Date.now(),next=await api(role==='teacher'?'teacher':'state',undefined,token);if(revision!==generation)return;clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
- const compare=JSON.stringify({...next,serverNow:0});if(force||compare!==lastView){if(state&&state.roundId!==next.roundId)$('#app').innerHTML='';state=next;lastView=compare;render();}else state=next;
+ try{const started=Date.now(),next=await api((selectedMode==='zones'?'zones/':'')+(role==='teacher'?'teacher':'state'),undefined,token);if(revision!==generation)return;if(next.serverNow)clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
+ const compare=JSON.stringify({...next,serverNow:0});if(force||compare!==lastView){if(state&&(state.roundId!==next.roundId||state.id!==next.id))$('#app').innerHTML='';state=next;lastView=compare;render();}else state=next;
  $('#connection').textContent=demo?'● Rehearsal':'● Connected';
- }catch(e){$('#connection').textContent='Reconnecting…';if(role==='student'&&[401,404].includes(e.status)){session.removeItem('pairs-student');device.removeItem('pairs-student');token='';state=null;lastView='';lastLobbyPoll=0;notice('Please choose your name again.');}else if(force)notice(e.message);}finally{if(revision===generation)refreshing=false;}
+ }catch(e){$('#connection').textContent='Reconnecting…';if(role==='student'&&[401,404].includes(e.status)){session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;notice('Please choose your name again.');}else if(force)notice(e.message);}finally{if(revision===generation)refreshing=false;}
 }
 function download(name,value,type='application/json'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([typeof value==='string'?value:JSON.stringify(value,null,2)],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
 document.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;const f=e.target,id=f.getAttribute('id'),b=Object.fromEntries(new FormData(f));
  try{
-  if(id==='join-form'){token=(await api('join',{code,id:Number(b.id),...(b.pin?{pin:b.pin.trim()}:{})})).token;session.setItem('pairs-student',token);device.setItem('pairs-student',token);await refresh(true);}
+  if(id==='zones-inspect'){zonesLocal('zone-inspect',{id:b.student},state);render();}
+  else if(id.startsWith('zones-')){const request=zonesPayload(id,b);if(request){await api('zones/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
+  else if(id==='join-form'){selectedMode='menu';token=(await api('join',{code,id:Number(b.id),...(b.pin?{pin:b.pin.trim()}:{})})).token;session.setItem('pairs-student',token);device.setItem('pairs-student',token);await refresh(true);}
   else if(id==='teacher-login'){role='teacher';token=b.key.trim();session.setItem('night-teacher',token);history.replaceState(null,'','#teacher');await refresh(true);}
   else if(id==='create'||id==='configure'){await api('admin/'+id,{...b,roundId:state.roundId,names:b.names?.split('\n').map(n=>n.trim()).filter(Boolean),rounds:Number(b.rounds),seconds:Number(b.seconds)},token);await refresh(true);}
   else if(id==='practice'){await api('practice',{choice:b.choice},token);await refresh(true);}
@@ -108,13 +114,16 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
-  if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
+  if(['modePairs','modeZones','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':'menu';state=null;lastView='';clearZones();$('#app').innerHTML='';await refresh(true);}
+  else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
+  else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
   else if(action==='demoTeacher'||action==='demoStudent'){role=action==='demoTeacher'?'teacher':'student';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
-  else if(action==='simulate'){await simulate();await refresh(true);}
+  else if(action==='simulate'){await (selectedMode==='zones'?simulateZones():simulate());await refresh(true);}
   else if(action==='demoReset'){resetDemo();role='teacher';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
-  else if(action==='logout'){await api('leave',{},token);session.removeItem('pairs-student');device.removeItem('pairs-student');token='';state=null;lastView='';lastLobbyPoll=0;roster=[];await refresh(true);}
+  else if(action==='logout'){await api('leave',{},token);session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;roster=[];await refresh(true);}
   else if(['csv','json','recovery'].includes(action))download(`Contribute-Take-${state.code}-${action}.${action==='csv'?'csv':'json'}`,await api('export?type='+action,undefined,token),action==='csv'?'text/csv':'application/json');
   else{await api('admin/'+action,{roundId:b.dataset.round||state.roundId,id:Number(b.dataset.id)},token);await refresh(true);}
  }catch(err){notice(err.message);}finally{busy=false;updateClock();}
 });
+document.addEventListener('input',()=>{if(selectedMode==='zones')updateZonesTotals();});
 refresh(true);setInterval(()=>{if(role==='teacher'||!document.hidden)refresh();},2000);setInterval(updateClock,200);

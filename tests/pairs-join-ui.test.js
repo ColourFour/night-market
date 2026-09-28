@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {handlePairs,pairSecret} from '../docs/pairs-core.js';
-test('Public UI goes straight from name selection to the robot introduction',async()=>{
+test('Public UI opens a game menu after name selection, then the chosen robot introduction',async()=>{
  let game={teacherKey:pairSecret(),pairs:null};
  game=handlePairs(game,{url:'/api/pairs/admin/create',method:'POST',headers:{authorization:'Bearer '+game.teacherKey},body:{names:['Student A','Student B'],rounds:1,seconds:30}}).state;
  const elements=new Map(),listeners=new Map(),data=new Map();
@@ -16,6 +16,8 @@ test('Public UI goes straight from name selection to the robot introduction',asy
   assert.match(html(),/Choose yourself/);assert.match(html(),/Student A/);assert.doesNotMatch(html(),/Teacher access|teacher-login|rehearsal|Room code|Private seat code/);
   globalThis.FormData=class{constructor(){return new Map([['id','0']]);}};
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'join-form'}});
+  assert.match(html(),/Choose your experiment/);assert.match(html(),/Economic Zones/);assert.match(html(),/disabled aria-disabled="true"/);
+  await listeners.get('click')({target:{closest:()=>({dataset:{action:'modePairs'}})}});
   assert.match(html(),/Two choices/);assert.match(html(),/Welcome, Student A/);assert.match(html(),/Reveal my practice result/);assert.doesNotMatch(html(),/Start timed round/);
   assert.ok(data.get('pairs-student'));
  }finally{globalThis.fetch=fetch;globalThis.setInterval=interval;globalThis.FormData=Form;}
