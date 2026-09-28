@@ -1,4 +1,4 @@
-import {handlePairs,pairSecret} from './pairs-core.js?v=lobby1';
+import {handlePairs,pairSecret} from './pairs-core.js?v=autoflow1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
@@ -8,7 +8,7 @@ function request(path,body,token){const r=handlePairs(get(),{url:'/api/pairs/'+p
 function get(){if(!state){try{state=JSON.parse(localStorage.getItem(KEY));}catch{}if(!state?.pairs)resetDemo();}return state;}
 export function resetDemo(){
  state={schema:1,teacherKey:pairSecret(),room:null,pairs:null};
- const setup=handlePairs(state,{url:'/api/pairs/admin/create',method:'POST',headers:{authorization:'Bearer '+state.teacherKey},body:{names:Array.from({length:13},(_,i)=>`Student ${i+1}`),rounds:13,seconds:30,rotation:'rotate',missing:'pause'}});
+ const setup=handlePairs(state,{url:'/api/pairs/admin/create',method:'POST',headers:{authorization:'Bearer '+state.teacherKey},body:{names:Array.from({length:13},(_,i)=>`Student ${i+1}`),rounds:13,seconds:30,rotation:'rotate',missing:'take'}});
  state=setup.state;state.pairs.players.forEach(p=>{p.token=pairSecret();});persist();
 }
 export const demoToken=role=>role==='teacher'?get().teacherKey:get().pairs.players[0].token;
