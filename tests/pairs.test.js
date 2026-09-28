@@ -20,6 +20,8 @@ function app(count=13,options={}){
  function call(path,body,token=key,status=200){const r=handlePairs(state,{url:'/api/pairs/'+path,method:body===undefined?'GET':'POST',headers:{authorization:'Bearer '+token},body},{now,siteUrl:'https://example.test/'});assert.equal(r.status,status,JSON.stringify(r.body));if(r.changed){state=r.state;version++;}return r;}
  call('admin/create',{names:Array.from({length:count},(_,i)=>'Player '+i),rounds:count%2?count:count-1,seconds:10,rotation:'rotate',missing:'pause',...options});
  const tokens=state.pairs.players.map(p=>call('join',{code:state.pairs.code,id:p.id,pin:p.pin},'').body.token);
+ tokens.forEach(token=>call('practice',{choice:'contribute'},token));
+ call('admin/unlock',{roundId:state.pairs.roundId});
  return {call,tokens,key,get:()=>structuredClone(state),now:n=>{now=n;},admin:(action,b={},status=200)=>call('admin/'+action,{roundId:state.pairs.roundId,...b},key,status),version:()=>version};
 }
 test('13-player full cycle: timer privacy, simultaneous reveal, scores and history',()=>{
@@ -41,7 +43,7 @@ test('13-player full cycle: timer privacy, simultaneous reveal, scores and histo
  }
  assert.equal(a.get().pairs.status,'complete');assert.deepEqual(a.get().room,{preserve:'Night Market record'});
  const csv=a.call('export?type=csv').body;assert.equal(csv.split('\r\n').length,170);
- const backup=a.call('export?type=recovery').body;const reset=a.admin('reset',{confirm:a.get().pairs.code});assert.ok(reset.archive);assert.equal(a.get().pairs,null);assert.deepEqual(a.get().room,{preserve:'Night Market record'});
+ const backup=a.call('export?type=recovery').body;const reset=a.admin('reset',{confirm:a.get().pairs.code});assert.ok(reset.archive);assert.equal(a.get().pairs.stage,'practice');assert.ok(a.get().pairs.players.every(p=>!p.token&&!p.practice));assert.deepEqual(a.get().room,{preserve:'Night Market record'});
  a.call('admin/restore',{backup});assert.equal(a.get().pairs.history.length,13);a.admin('recoverSeat',{id:0});a.call('state',undefined,a.tokens[0],401);
 });
 test('Deadline reveals absent choices as Take, waits 30 seconds and opens the next round',()=>{
@@ -87,15 +89,15 @@ test('Concurrent clock polls commit the reveal only once',async()=>{
  await Promise.all(base.tokens.map(async token=>{for(let i=0;i<30;i++){const v=version;const response=handlePairs(state,{url:'/api/pairs/state',method:'GET',headers:{authorization:'Bearer '+token}},{now});await new Promise(r=>setTimeout(r,Math.random()*3));if(response.changed){if(v!==version)continue;state=response.state;version++;}assert.equal(response.status,200);return;}assert.fail('Retry limit');}));
  assert.equal(state.pairs.history.length,1);assert.equal(version,1);
 });
-test('Public name selection exposes only roster and protects claimed seats',()=>{
+test('Public name selection exposes only roster and rotates sessions when rejoining',()=>{
  let state={teacherKey:pairSecret(),pairs:null};const teacher=state.teacherKey;
  function call(path,body,token='',status=200){const r=handlePairs(state,{url:'/api/pairs/'+path,method:body===undefined?'GET':'POST',headers:{authorization:'Bearer '+token},body});assert.equal(r.status,status,JSON.stringify(r.body));if(r.changed)state=r.state;return r.body;}
  assert.deepEqual(call('lobby'),{empty:true,players:[]});
  call('admin/create',{names:['A','B','C'],rounds:3,seconds:30},teacher);
  const initial=call('lobby');assert.equal(initial.players.length,3);assert.deepEqual(Object.keys(initial).sort(),['code','players']);assert.deepEqual(Object.keys(initial.players[0]).sort(),['id','joined','name']);
- const a=call('join',{code:initial.code,id:0}).token;
+ let a=call('join',{code:initial.code,id:0}).token;
  assert.ok(a);assert.equal(call('lobby').players[0].joined,true);
- call('join',{code:initial.code,id:0},'',409);assert.equal(call('state',undefined,a).me.name,'A');
+ const old=a;a=call('join',{code:initial.code,id:0}).token;call('state',undefined,old,401);assert.equal(call('state',undefined,a).me.name,'A');
  call('teacher',undefined,'',401);call('admin/open',{roundId:state.pairs.roundId},'',401);
  call('join',{code:'WRONG',id:1},'',404);
  call('admin/recoverSeat',{roundId:state.pairs.roundId,id:0},teacher);call('state',undefined,a,401);

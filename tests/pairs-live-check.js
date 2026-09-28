@@ -9,6 +9,7 @@ await call('admin/create',{names:Array.from({length:13},(_,i)=>'Pair test '+i),r
 let state=await call('teacher');const code=state.code;
 const tokens=await Promise.all(state.seats.map(p=>call('join',{code,id:p.id,pin:p.pin},'').then(x=>x.token)));
 async function admin(action,body={}){await call('admin/'+action,{roundId:state.roundId,...body});state=await call('teacher');}
+await Promise.all(tokens.map(token=>call('practice',{choice:'contribute'},token)));await admin('unlock');
 const totals=Array(13).fill(0);
 for(let round=1;round<=2;round++){
  if(round===1)await admin('open');
@@ -27,7 +28,7 @@ for(let round=1;round<=2;round++){
  console.log('Round '+round+': automatic timer reveal and running totals passed.');
 }
 assert.equal(state.status,'complete');assert.equal((await call('export?type=csv')).split('\r\n').length,27);
-const backup=await call('export?type=recovery');await admin('reset',{confirm:code});assert.equal(state.empty,true);
+const backup=await call('export?type=recovery');await admin('reset',{confirm:code});assert.equal(state.stage,'practice');assert.ok(state.seats.every(p=>!p.joined));
 await call('admin/restore',{backup});state=await call('teacher');assert.equal(state.history.length,2);await admin('reset',{confirm:code});
 fs.writeFileSync('.private/pairs-live-acceptance.json',JSON.stringify({passed:true,requests,players:13,rounds:2,automaticReveal:true,automaticAdvance:true,checkedAt:new Date().toISOString()},null,2));
 console.log('Hosted paired game passed; test class archived and reset.');

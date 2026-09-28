@@ -1,4 +1,4 @@
-import {handlePairs,pairSecret} from './pairs-core.js?v=autoflow1';
+import {handlePairs,pairSecret} from './pairs-core.js?v=practice1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
@@ -15,7 +15,7 @@ export const demoToken=role=>role==='teacher'?get().teacherKey:get().pairs.playe
 export async function simulate(){
  const r=get().pairs;
  if(r.status!=='open'||Date.now()>=r.deadline)throw Error('Start or extend the timer first.');
- for(const p of r.players){if(p.id===0)continue;const v=request('state',undefined,p.token).body;if(v.opponent&&!v.myChoice&&v.status==='open')request('choice',{roundId:v.roundId,choice:(p.id+r.round)%3?'contribute':'take'},p.token);}
+ for(const p of r.players){if(p.id===0)continue;const v=request('state',undefined,p.token).body;if(!v.me.practice)request('practice',{choice:'contribute'},p.token);if(v.opponent&&!v.myChoice&&v.status==='open')request('choice',{roundId:v.roundId,choice:(p.id+r.round)%3?'contribute':'take'},p.token);}
 }
 export async function api(path,body,token){
  if(demo)return request(path,body,token).body;

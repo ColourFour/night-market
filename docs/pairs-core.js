@@ -58,22 +58,22 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   if(r.status==='revealed'&&!r.clockHeld&&r.nextRoundAt!==null&&now>=r.nextRoundAt)advance(r);
  }
  function standings(r){
-  const rows=r.players.map(p=>({id:p.id,name:p.name,total:0,played:0,byes:0}));
+  const rows=r.players.map(p=>({id:p.id,name:p.name,total:r.stage==='practice'?(p.practice?.score||0):0,played:r.stage==='practice'&&p.practice?1:0,byes:0}));
   for(const h of r.history)for(const x of h.results){if(x.bye){rows[x.a].byes++;continue;}rows[x.a].total+=x.scoreA;rows[x.b].total+=x.scoreB;rows[x.a].played++;rows[x.b].played++;}
   rows.sort((a,b)=>b.total-a.total||a.id-b.id);
   return rows.map(x=>({...x,rank:1+rows.filter(y=>y.total>x.total).length}));
  }
  function view(r,p=null,isTeacher=false){
-  const standingsRows=standings(r),out={code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,deadline:r.deadline,nextRoundAt:r.nextRoundAt??null,clockHeld:!!r.clockHeld,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name,joined:!!p.token})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
-  if(p){const pair=pairs(r).find(x=>x.includes(p.id)),other=pair.find(id=>id!==p.id);out.me={id:p.id,name:p.name,...standingsRows.find(x=>x.id===p.id)};out.opponent=other===null?null:{id:other,name:r.players[other].name};out.myChoice=publicChoice(r.choices[p.id]);}
-  if(isTeacher){out.seats=r.players.map(p=>({id:p.id,name:p.name,pin:p.pin,joined:!!p.token,submitted:!!r.choices[p.id],bye:!active(r).includes(p.id)}));out.siteUrl=siteUrl;}
+  const standingsRows=standings(r),out={stage:r.stage||'class',practiceEnabled:!!r.stage,code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,deadline:r.deadline,nextRoundAt:r.nextRoundAt??null,clockHeld:!!r.clockHeld,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name,joined:!!p.token})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
+  if(p){const pair=pairs(r).find(x=>x.includes(p.id)),other=pair.find(id=>id!==p.id);out.me={id:p.id,name:p.name,...standingsRows.find(x=>x.id===p.id)};out.opponent=other===null?null:{id:other,name:r.players[other].name};out.myChoice=publicChoice(r.choices[p.id]);out.me.practice=p.practice||null;}
+  if(isTeacher){out.seats=r.players.map(p=>({id:p.id,name:p.name,pin:p.pin,joined:!!p.token,practiced:!!p.practice,practiceScore:p.practice?.score??null,submitted:!!r.choices[p.id],bye:!active(r).includes(p.id)}));out.siteUrl=siteUrl;}
   return out;
  }
  const response=(body,status=200)=>({status,body,type:'application/json',state,changed,archive});
  try{
   // Check authorization before a request can advance the server clock or reveal data.
   if(url.pathname.startsWith('/api/pairs/admin/')||url.pathname==='/api/pairs/teacher'||url.pathname==='/api/pairs/export')teacher();
-  else if(['/api/pairs/state','/api/pairs/choice'].includes(url.pathname))player();
+  else if(['/api/pairs/state','/api/pairs/choice','/api/pairs/practice','/api/pairs/leave'].includes(url.pathname))player();
   else if(!['/api/pairs/lookup','/api/pairs/join','/api/pairs/lobby'].includes(url.pathname))fail('Not found.',404);
   if(route==='GET /api/pairs/lobby')return response(state.pairs?{code:state.pairs.code,players:state.pairs.players.map(p=>({id:p.id,name:p.name,joined:!!p.token}))}:{empty:true,players:[]});
   const extending=route==='POST /api/pairs/admin/extend'&&state.pairs?.status==='open'&&b.roundId===state.pairs.roundId;
@@ -88,12 +88,21 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    const r=room();if(b.code!==r.code)fail('Room code not found.',404);
    const p=r.players.find(p=>p.id===b.id);if(!p)fail('Choose your name from the list.');
    if(b.pin!==undefined){if(p.pin!==b.pin)fail('Check your private seat code with your teacher.',401);}
-   else if(p.token)fail('This name has already joined. Ask your teacher to free the seat if it is yours.',409);
+   // Name-based classroom sign-in also reconnects a student's seat on a new device.
    p.token=pairSecret();changed=true;return response({token:p.token});
+  }
+  if(route==='POST /api/pairs/leave'){player().token=null;changed=true;return response({ok:true});}
+  if(route==='POST /api/pairs/practice'){
+   const p=player();if(p.practice)return response(p.practice);
+   if(!['contribute','take'].includes(b.choice))fail('Choose Contribute or Take.');
+   const bot=crypto.getRandomValues(new Uint8Array(1))[0]%2?'take':'contribute';
+   const [score,botScore]=pairPayoff(b.choice,bot);p.practice={choice:b.choice,bot,score,botScore};changed=true;return response(p.practice);
   }
   if(route==='GET /api/pairs/state')return response(view(room(),player()));
   if(route==='POST /api/pairs/choice'){
    const r=room(),p=player();guard(r);
+   if(r.stage==='practice')fail('Wait for your teacher to unlock classmates.',409);
+   if(r.stage&&!p.practice)fail('Complete your robot practice first.',409);
    if(r.status!=='open'||now>=r.deadline)fail('This round is no longer accepting choices. Wait for the next round.',409);
    if(!active(r).includes(p.id))fail('You are sitting out this round.',409);
    if(r.choices[p.id])fail('Your choice is already locked.',409);
@@ -119,7 +128,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    if(action==='create'){
     if(state.pairs)fail('Reset the existing paired game before creating another.');
     const names=rosterNames(b.names),config=settings(b);
-    state.pairs={code:Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%31]).join(''),settings:config,status:'waiting',round:1,roundId:pairSecret(),deadline:null,nextRoundAt:null,clockHeld:false,flowVersion:2,choices:{},history:[],players:names.map((name,id)=>({id,name,pin:pin(),token:null}))};changed=true;return response({ok:true});
+    state.pairs={code:Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%31]).join(''),settings:config,stage:'practice',status:'waiting',round:1,roundId:pairSecret(),deadline:null,nextRoundAt:null,clockHeld:false,flowVersion:2,choices:{},history:[],players:names.map((name,id)=>({id,name,pin:pin(),token:null,practice:null}))};changed=true;return response({ok:true});
    }
    if(action==='restore'){
     const recovered=structuredClone(b.backup);
@@ -128,6 +137,9 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
     rosterNames(r.players.map(p=>p.name));r.settings=settings(r.settings);
     if(r.round>r.settings.rounds||!['waiting','open','paused','revealed','complete'].includes(r.status)||!(/^[A-Z2-9]{5}$/).test(r.code))fail('Invalid recovery state.');
     r.players.forEach((p,i)=>{if(p.id!==i||!/^\d{6}$/.test(p.pin)||(p.token!==null&&!/^[a-f0-9]{48}$/.test(p.token)))fail('Invalid recovery roster.');});
+    if(r.stage!==undefined&&!['practice','class'].includes(r.stage))fail('Invalid recovery phase.');
+    for(const p of r.players)if(p.practice){const [score,botScore]=pairPayoff(p.practice.choice,p.practice.bot);p.practice={choice:p.practice.choice,bot:p.practice.bot,score,botScore};}
+    if(r.stage==='practice'&&(r.status!=='waiting'||r.round!==1||r.history.length||Object.keys(r.choices).length))fail('Invalid practice recovery.');
     for(const [id,c] of Object.entries(r.choices)){if(!r.players[Number(id)]||!['contribute','take'].includes(c.choice))fail('Invalid recovered choice.');}
     r.history.forEach((h,i)=>{
      if(h.round!==i+1||!Array.isArray(h.results))fail('Invalid recovery history.');
@@ -141,10 +153,13 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
     archive=structuredClone(state);state.pairs=r;changed=true;return response({ok:true});
    }
    const r=room();guard(r);
-   if(action==='configure'){
+   if(action==='unlock'){
+    if(r.stage!=='practice')fail('Classmates are already unlocked.',409);
+    r.stage='class';r.status='waiting';r.round=1;r.roundId=pairSecret();r.history=[];r.choices={};r.deadline=null;r.nextRoundAt=null;r.clockHeld=false;
+   }else if(action==='configure'){
     if(r.status!=='waiting'||r.history.length)fail('Set rounds and timer before the first round.');r.settings=settings(b);
    }else if(action==='open'){
-    if(r.status!=='waiting')fail('Advance to a new round first.');r.status='open';r.deadline=now+r.settings.seconds*1000;r.clockHeld=false;
+    if(r.stage==='practice')fail('Unlock classmates before starting the round.',409);if(r.status!=='waiting')fail('Advance to a new round first.');r.status='open';r.deadline=now+r.settings.seconds*1000;r.clockHeld=false;
    }else if(action==='extend'){
     if(!['paused','open'].includes(r.status))fail('Choices are already revealed. Extra decision time must be added before reveal.');r.status='open';r.deadline=Math.max(now,r.deadline||now)+30000;r.clockHeld=false;r.flowVersion=2;r.settings.missing='take';
    }else if(action==='reveal'){
@@ -159,7 +174,9 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    }else if(action==='recoverSeat'){
     const p=r.players.find(p=>p.id===b.id);if(!p)fail('Choose a student.');p.token=null;p.pin=pin();
    }else if(action==='reset'){
-    if(b.confirm!==r.code)fail('Type the room code to confirm.');archive=structuredClone(state);state.pairs=null;
+    if(b.confirm!==r.code)fail('Type the room code to confirm.');archive=structuredClone(state);
+    r.stage='practice';r.status='waiting';r.round=1;r.roundId=pairSecret();r.deadline=null;r.nextRoundAt=null;r.clockHeld=false;r.flowVersion=2;r.choices={};r.history=[];
+    r.players=r.players.map(p=>({id:p.id,name:p.name,pin:pin(),token:null,practice:null}));
    }else fail('Unknown action.',404);
    changed=true;return response({ok:true});
   }

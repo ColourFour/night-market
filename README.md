@@ -2,34 +2,31 @@
 
 Open **https://colourfour.github.io/night-market/**. The main page now runs the two-player game. The original Night Market remains at **https://colourfour.github.io/night-market/market.html**, with its own saved class state.
 
-## Try the paired game
+## Student flow and a rehearsal
 
-1. Open the paired rehearsal from your private teacher access file. It uses thirteen simulated students and cannot affect your real class. Rehearsal and teacher links are absent from the public student page.
-2. Press **Start timed round**, then **Play as Student 1**.
-3. Choose **Contribute** or **Take**, then **Lock my choice**.
-4. Press **Simulate classmates**. Choices stay hidden until the timer ends, then both choices and scores appear. After the results appear, wait 30 seconds: the next round starts automatically. You can return to **Teacher view** to pause that countdown or start the next round immediately.
-5. Before reveal, use **Give another 30 seconds** if students need longer. At zero, missing choices become Take; they no longer hold up the class. Restart rehearsal starts fresh. If browser storage is full, rehearsal continues in memory; keep that tab open.
+Students open the public page, choose their name and read a short explanation of simultaneous Contribute / Take decisions. They play **one practice round against a random robot**: each robot choice has a 50–50 chance, independent of the student's choice. The result explains both choices and displays **+0 😢**, **+2 ☹️**, **+5 👍**, or **+6 with a larger 👍**. Practice results and the practice leaderboard are separate from class points. Rejoining cannot grant another practice attempt.
+
+To preview, use the rehearsal link in `.private/Teacher access.html`. Restart the rehearsal to try the current flow. Choose **Play as Student 1**, make the robot practice choice, then return to **Teacher view**, **Unlock classmates**, and **Start timed round**. Switch back to Student 1, choose an action and use **Simulate classmates**. The other twelve simulated students finish their practice automatically. After the timer expires, inspect the large round score, explanation, total and class leaderboard. The next round starts after 30 seconds. The rehearsal is separate from the real classroom; when storage is blocked it stays usable in memory until the tab closes.
 
 ## Run the paired class
 
-1. Open the local `.private/Teacher access.html` file and choose **Open paired teacher dashboard**. The thirteen-student roster is prepared with no scores or submissions. The private access file is for the teacher only.
-2. Before starting, expand **Change rounds or timer**. Choose the number of rounds and seconds per round. The default is **13 rounds, 30 seconds, rotating opponents**. For thirteen students, thirteen rounds give everyone twelve matches and one sit-out. Longer games repeat the cycle. Shorter games can leave unequal matches played; that count appears beside each total. Fixed pairs are also available; an odd class then has the same student sitting out throughout.
-3. Give students only the public website. It opens directly to **Choose yourself**. Students select their name and press **Join your class**, with no room code or PIN. They enter the illustrated waiting lobby, which shows joined counts and class arrivals. The teacher starts the first round. Mobile data works; a shared Wi-Fi network is unnecessary.
-4. Press **Start timed round**. Students see their opponent’s name, their running total, the countdown and two choices. A submitted choice is locked. Neither the opponent nor the teacher sees it before reveal.
-5. At zero, choices reveal together and totals update. Missing choices automatically become **Take** and are marked as timed out, including absent students. **Give another 30 seconds** adds exactly 30 seconds to an unrevealed round. Once choices have been revealed, the round cannot reopen. An extension arriving at the deadline wins only if reveal has not already been committed.
-6. Results remain visible for **30 seconds**, then the next opponents and decision timer start automatically. Use **Pause next round** for a discussion, **Resume 30-second countdown** to continue, or **Start next round now** to skip the remaining wait. The final round completes the game automatically. Students retain their round history and totals.
-7. Download CSV or results JSON for records. A **Recovery backup** includes private seat access, so keep it private. The **Reset game** button at the top of the teacher dashboard opens a confirmation: type the displayed room code to archive the game, clear scores and choices, and return to class setup. Students join again after you create the new game. Restore and reset archive the preceding state. Under **Student seat recovery**, recover a seat to free a claimed name and invalidate the old device session. Paired-game resets and restores preserve the original Night Market game.
-
-Name selection is a classroom trust workflow: the active class roster is visible from the public link. Once claimed, a seat cannot be claimed again without its private recovery code or the teacher freeing it. The browser remembers the student's seat across reloads and restarts when storage is available. On a shared device, use **Leave this device** and ask the teacher to free the old seat. Teacher controls still require the private teacher key; hiding public navigation does not replace server authentication. Open teacher and rehearsal links from `.private/Teacher access.html`, linked only in the private chat.
+1. Open `.private/Teacher access.html` from the private chat and choose **Open paired teacher dashboard**. Keep that file private. Public pages have no teacher or rehearsal links.
+2. Use **Reset game** to start a fresh session. Type the displayed code to confirm. Reset archives the previous game, retains the class roster and settings, clears all points and practice attempts, signs out student devices, frees every name and returns the game to robot practice. Existing games remain intact when software updates are published; reset when ready to use the new flow.
+3. Share only **https://colourfour.github.io/night-market/**. Students choose their names, read the introduction, complete one robot practice and wait for you. The dashboard shows practice completion and scores. Students can rejoin their own name on another device; this transfers their session without losing their practice result or class points. **Choose another name / rejoin** releases the current device's seat. This is a classroom trust workflow: students must select only their own name.
+4. Set rounds, seconds and opponent rotation before class play. Defaults are **13 rounds, 30 seconds, rotating opponents**. With thirteen students, thirteen rounds give everyone twelve matches and one sit-out. Sit-outs score zero; longer games repeat the cycle. A shorter game can leave unequal matches played. Fixed pairs are available, with a permanent sit-out for an odd class.
+5. Press **Unlock classmates · start totals at 0**. Class points and the leaderboard start at zero; robot points do not carry over. Students who finished practice move into the class lobby. Late arrivals complete their practice before joining class play. Press **Start timed round** when ready. Practice mode cannot start class rounds or accept class decisions before teacher unlock.
+6. During a round students see their opponent, timer and total. Choices are locked on submission and hidden until reveal. At zero, missing choices automatically become **Take**, including absent students. **Give another 30 seconds** extends an unrevealed round. Once revealed, a round cannot reopen.
+7. Between rounds the student's large score reaction and explanation appear, with an obvious running total and the **Class leaderboard** above their older round history. Results show for **30 seconds**, then the next round starts automatically. Use **Pause next round**, **Resume 30-second countdown**, or **Start next round now** for discussion. The final round finishes automatically.
+8. Download CSV or results JSON for records. A **Recovery backup** includes private access, so keep it private. Restoring a timed game pauses it for teacher control. **Student seat recovery** invalidates a device session if needed. Paired resets and restores preserve the original Night Market game.
 
 | Your choice | Opponent contributes | Opponent takes |
 | --- | --- | --- |
 | Contribute | **5 / 5** | **0 / 6** |
 | Take | **6 / 0** | **2 / 2** |
 
-Each cell shows **your points / their points**. Sit-outs earn zero points. Scores accumulate across all revealed rounds.
+Each cell shows **your points / their points**. Robot practice uses the same matrix. Teacher access is checked on the server; hiding public navigation does not replace authentication.
 
-The Seewoo board can run the teacher dashboard in its browser, or you can connect a Mac by HDMI. Keep private seat codes collapsed while projecting. Test the site on one student’s mobile connection before class; use their VPN if needed. Rehearsal is local to the browser; real games use the hosted server.
+The Seewoo board can run the teacher dashboard in its browser, or connect a Mac by HDMI. Students can use mobile data without a shared Wi-Fi network. Test on one student's connection before class and use their VPN if needed. Keep the teacher page open during class so timed transitions continue.
 
 ## Original THIRTEEN — The Night Market
 
