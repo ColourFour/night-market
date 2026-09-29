@@ -1,4 +1,4 @@
-import {handleZones} from './zones-core.js?v=zones1';
+import {handleZones} from './zones-core.js?v=city2';
 import {handlePairs,pairSecret} from './pairs-core.js?v=unlimited1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
@@ -28,5 +28,6 @@ export async function api(path,body,token){
 export async function simulateZones(){
  const s=get();if(!s.zones||s.zones.status!=='open')throw Error('Open Economic Zones submissions first.');
  for(const p of s.pairs.players){if(p.id===0)continue;const allocation=[0,0,0,0,0];for(let unit=0;unit<100;unit++)allocation[(unit*(p.id%4+1)+Math.floor(unit/7)+p.id)%5]++;
+ if(!get().zones.practice?.[p.id]?.attempts)request('zones/practice',{id:s.zones.id,allocation},p.token);
  request('zones/submit',{id:s.zones.id,allocation,reflection:{why:'Rehearsal example: distribute attention across the city.'}},p.token);}
 }

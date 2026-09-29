@@ -1,6 +1,6 @@
-import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,clearZones} from './zones-ui.js?v=zones1';
+import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=city2';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,resetDemo} from './pairs-transport.js?v=unlimited1';
+import {api,demo,saved,demoToken,simulate,simulateZones,resetDemo} from './pairs-transport.js?v=city2';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -66,7 +66,7 @@ function render(){
  for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
  $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
- updateClock();updateZonesTotals();
+ updateClock();updateZonesTotals();zonesAfterRender();
  if(focusName&&focusForm){const form=[...document.querySelectorAll('form')].find(f=>f.id===focusForm),el=form&&[...form.elements].find(e=>e.name===focusName);if(el){el.focus?.({preventScroll:true});if(el.type==='text'||el.tagName==='TEXTAREA')try{el.setSelectionRange(focusPosition,focusPosition);}catch{}}}
 }
 function updateClock(){
