@@ -1,4 +1,4 @@
-import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=city2';
+import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
 import {api,demo,saved,demoToken,simulate,simulateZones,resetDemo} from './pairs-transport.js?v=city2';
 import {session,device} from './browser-storage.js?v=lobby1';
