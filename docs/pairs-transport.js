@@ -1,3 +1,4 @@
+import {handleFrontier,adjacent} from './frontier-core.js?v=frontier1';
 import {handleZones} from './zones-core.js?v=city2';
 import {handlePairs,pairSecret} from './pairs-core.js?v=unlimited1';
 import {API_BASE} from './config.js';
@@ -5,7 +6,8 @@ export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
 let state;export let saved=true;
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));saved=true;}catch{saved=false;}}
-function request(path,body,token){const zones=path.startsWith('zones/');const r=(zones?handleZones:handlePairs)(get(),{url:zones?'/api/zones/'+path.slice(6):'/api/pairs/'+path,method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;persist();}if(r.status>=400)throw Error(r.body.error);return r;}
+function apiPath(path){return path.startsWith('frontier/')?'/api/frontier/'+path.slice(9):path.startsWith('zones/')?'/api/zones/'+path.slice(6):'/api/pairs/'+path;}
+function request(path,body,token){const r=(path.startsWith('frontier/')?handleFrontier:path.startsWith('zones/')?handleZones:handlePairs)(get(),{url:apiPath(path),method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;persist();}if(r.status>=400)throw Error(r.body.error);return r;}
 function get(){if(!state){try{state=JSON.parse(localStorage.getItem(KEY));}catch{}if(!state?.pairs)resetDemo();}return state;}
 export function resetDemo(){
  state={schema:1,teacherKey:pairSecret(),room:null,pairs:null};
@@ -20,7 +22,7 @@ export async function simulate(){
 }
 export async function api(path,body,token){
  if(demo)return request(path,body,token).body;
- const response=await fetch(API_BASE+(path.startsWith('zones/')?'/api/zones/'+path.slice(6):'/api/pairs/'+path),{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(30000)});
+ const response=await fetch(API_BASE+apiPath(path),{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(30000)});
  const value=response.headers.get('content-type')?.includes('json')?await response.json():await response.text();
  if(!response.ok)throw Object.assign(Error(value.error||'Connection interrupted. Please retry.'),{status:response.status});return value;
 }
@@ -30,4 +32,18 @@ export async function simulateZones(){
  for(const p of s.pairs.players){if(p.id===0)continue;const allocation=[0,0,0,0,0];for(let unit=0;unit<100;unit++)allocation[(unit*(p.id%4+1)+Math.floor(unit/7)+p.id)%5]++;
  if(!get().zones.practice?.[p.id]?.attempts)request('zones/practice',{id:s.zones.id,allocation},p.token);
  request('zones/submit',{id:s.zones.id,allocation,reflection:{why:'Rehearsal example: distribute attention across the city.'}},p.token);}
+}
+
+export async function simulateFrontier(){
+ const g=get().frontier;if(!g||g.status!=='open')throw Error('Begin a Frontier Cities round first.');
+ for(const p of g.players){if(p.id===0||p.eliminated)continue;
+  const seat=get().pairs.players.find(q=>q.id===p.id),owned=g.tiles.filter(t=>t.owner===p.id);
+  let order={action:'hold',ally:null};
+  const from=owned.find(t=>t.troops>=4),target=from&&g.tiles.find(t=>adjacent(from.id,t.id,g.players.length)&&t.owner!==p.id&&(!t.capital||g.round>2)&&from.troops-1>t.troops+t.level);
+  if(target)order={action:'move',from:from.id,to:target.id,units:from.troops-1,ally:null};
+  else if(p.resources.food>=4&&p.resources.ore>=4)order={action:'recruit',tile:owned[0].id,units:4,ally:null};
+  else if(p.resources.ore>=4&&p.resources.gold>=3&&owned.some(t=>t.level<3))order={action:'develop',tile:owned.find(t=>t.level<3).id,ally:null};
+  if(!seat.token)request('join',{code:get().pairs.code,id:p.id});
+  request('frontier/order',{...order,id:g.id,roundId:g.roundId},get().pairs.players.find(q=>q.id===p.id).token);
+ }
 }

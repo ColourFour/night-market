@@ -16,7 +16,7 @@ test('Public UI opens a game menu after name selection, then the chosen robot in
   assert.match(html(),/Choose yourself/);assert.match(html(),/Student A/);assert.doesNotMatch(html(),/Teacher access|teacher-login|rehearsal|Room code|Private seat code/);
   globalThis.FormData=class{constructor(){return new Map([['id','0']]);}};
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'join-form'}});
-  assert.match(html(),/Choose your experiment/);assert.match(html(),/Economic Zones/);assert.match(html(),/disabled aria-disabled="true"/);
+  assert.match(html(),/Choose your experiment/);assert.match(html(),/Economic Zones/);assert.match(html(),/data-action="modeFrontier"/);
   await listeners.get('click')({target:{closest:()=>({dataset:{action:'modePairs'}})}});
   assert.match(html(),/Two choices/);assert.match(html(),/Welcome, Student A/);assert.match(html(),/Reveal my practice result/);assert.doesNotMatch(html(),/Start timed round/);
   assert.ok(data.get('pairs-student'));

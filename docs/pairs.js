@@ -1,6 +1,7 @@
+import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=frontier1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,resetDemo} from './pairs-transport.js?v=city2';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=frontier1';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -57,12 +58,12 @@ function student(){
  if(results)return title()+totalStrip()+roundOutcome()+(state.status==='revealed'?`<p class="next-round-note">${state.clockHeld?'Your teacher has paused before the next round.':'Next round starts in <strong id="next-countdown">30s</strong>.'}</p>`:'')+standings()+historyView+leaveButton();
  return title()+totalStrip()+`<section class="duel panel"><div class="duel-people"><div><small>You</small><h2>${esc(state.me.name)}</h2></div><span class="versus">${state.opponent?'vs':'—'}</span><div><small>${state.opponent?'Your opponent':'This round'}</small><h2>${state.opponent?esc(state.opponent.name):'You sit out'}</h2></div></div>${timer()}${!state.opponent?'<p>Follow the results. Your next opponent appears when the next round begins.</p>':state.myChoice?`<div class="locked-choice">Your choice is locked: <strong>${label(state.myChoice.choice)}</strong><p>Both choices reveal when time runs out.</p></div>`:state.status==='open'?choiceForm('choice','Lock my choice'):'<p>Wait for your teacher to resume the timer.</p>'}</section>${historyView}${matrix()}${leaveButton()}`;
 }
-function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p><div class="game-cards"><button type="button" class="game-card game-pairs" data-action="modePairs"><span class="game-number">01</span><h2>Contribute / Take</h2><p>Two people. Two choices.<br>Trust, incentives and shared consequences.</p><strong>Enter the night market →</strong></button><button type="button" class="game-card game-zones" data-action="modeZones"><span class="game-number">02</span><h2>Economic Zones</h2><p>One hundred advertisements. Five zones.<br>Compete for attention across a future city.</p><strong>Enter the city →</strong></button><button type="button" class="game-card game-coming" disabled aria-disabled="true"><span class="game-number">03</span><h2>Next experiment</h2><p>A new strategic world is taking shape.</p><strong>Under construction</strong></button></div>${role==='student'?leaveButton():''}</section>`;}
+function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p><div class="game-cards"><button type="button" class="game-card game-pairs" data-action="modePairs"><span class="game-number">01</span><h2>Contribute / Take</h2><p>Two people. Two choices.<br>Trust, incentives and shared consequences.</p><strong>Enter the night market →</strong></button><button type="button" class="game-card game-zones" data-action="modeZones"><span class="game-number">02</span><h2>Economic Zones</h2><p>One hundred advertisements. Five zones.<br>Compete for attention across a future city.</p><strong>Enter the city →</strong></button><button type="button" class="game-card game-frontier" data-action="modeFrontier"><span class="game-number">03</span><h2>Frontier Cities</h2><p>Build a civilisation. Forge an alliance.<br>Grow, trade or conquer a shared world.</p><strong>Enter the frontier →</strong></button></div>${role==='student'?leaveButton():''}</section>`;}
 function render(){
  const focused=document.activeElement,focusName=focused?.name,focusForm=focused?.form?.id,focusPosition=focused?.selectionStart;
- const forms=new Map();document.querySelectorAll('form').forEach(f=>{forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
+ const forms=new Map();document.querySelectorAll('form').forEach(f=>{if(f.id==='frontier-order')return;forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
  const opened=[...document.querySelectorAll('details[open][data-key]')].map(e=>e.dataset.key);
- $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
+ $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='frontier'?frontierView(state,role)+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
  for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
  $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
@@ -70,6 +71,7 @@ function render(){
  if(focusName&&focusForm){const form=[...document.querySelectorAll('form')].find(f=>f.id===focusForm),el=form&&[...form.elements].find(e=>e.name===focusName);if(el){el.focus?.({preventScroll:true});if(el.type==='text'||el.tagName==='TEXTAREA')try{el.setSelectionRange(focusPosition,focusPosition);}catch{}}}
 }
 function updateClock(){
+ if(selectedMode==='frontier'){frontierClock(state,Date.now()+clockOffset,busy);return;}
  if(!state||state.empty||selectedMode!=='pairs')return;
  const deadline=state.status==='open'?state.deadline:state.status==='revealed'?state.nextRoundAt:null;
  const left=deadline?Math.max(0,Math.ceil((deadline-(Date.now()+clockOffset))/1000)):state.status==='waiting'?state.settings.seconds:0;
@@ -91,7 +93,7 @@ async function refresh(force=false){
  }
 
  refreshing=true;
- try{const started=Date.now(),next=await api((selectedMode==='zones'?'zones/':'')+(role==='teacher'?'teacher':'state'),undefined,token);if(revision!==generation)return;if(next.serverNow)clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
+ try{const started=Date.now(),next=await api((selectedMode==='frontier'?'frontier/':selectedMode==='zones'?'zones/':'')+(role==='teacher'?'teacher':'state'),undefined,token);if(revision!==generation)return;if(next.serverNow)clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
  const compare=JSON.stringify({...next,serverNow:0});if(force||compare!==lastView){if(state&&(state.roundId!==next.roundId||state.id!==next.id))$('#app').innerHTML='';state=next;lastView=compare;render();}else state=next;
  $('#connection').textContent=demo?'● Rehearsal':'● Connected';
  }catch(e){$('#connection').textContent='Reconnecting…';if(role==='student'&&[401,404].includes(e.status)){session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;notice('Please choose your name again.');}else if(force)notice(e.message);}finally{if(revision===generation)refreshing=false;}
@@ -100,7 +102,8 @@ function download(name,value,type='application/json'){const a=document.createEle
 document.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;const f=e.target,id=f.getAttribute('id'),b=Object.fromEntries(new FormData(f));
  try{
-  if(id==='zones-inspect'){zonesLocal('zone-inspect',{id:b.student},state);render();}
+  if(id.startsWith('frontier-')){const request=frontierPayload(id,b);if(request){await api('frontier/'+request.path,{...request.body,id:state.id,roundId:state.roundId},token);await refresh(true);}}
+  else if(id==='zones-inspect'){zonesLocal('zone-inspect',{id:b.student},state);render();}
   else if(id.startsWith('zones-')){const request=zonesPayload(id,b);if(request){await api('zones/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
   else if(id==='join-form'){selectedMode='menu';token=(await api('join',{code,id:Number(b.id),...(b.pin?{pin:b.pin.trim()}:{})})).token;session.setItem('pairs-student',token);device.setItem('pairs-student',token);await refresh(true);}
   else if(id==='teacher-login'){role='teacher';token=b.key.trim();session.setItem('night-teacher',token);history.replaceState(null,'','#teacher');await refresh(true);}
@@ -114,16 +117,19 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
-  if(['modePairs','modeZones','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':'menu';state=null;lastView='';clearZones();$('#app').innerHTML='';await refresh(true);}
+  if(['modePairs','modeZones','modeFrontier','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
+  else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json'].includes(action)){const type=action.slice(9);download('Frontier-Cities.'+type,await api('frontier/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
   else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
   else if(action==='demoTeacher'||action==='demoStudent'){role=action==='demoTeacher'?'teacher':'student';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
-  else if(action==='simulate'){await (selectedMode==='zones'?simulateZones():simulate());await refresh(true);}
+  else if(action==='simulate'){await (selectedMode==='frontier'?simulateFrontier():selectedMode==='zones'?simulateZones():simulate());await refresh(true);}
   else if(action==='demoReset'){resetDemo();role='teacher';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
   else if(action==='logout'){await api('leave',{},token);session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;roster=[];await refresh(true);}
   else if(['csv','json','recovery'].includes(action))download(`Contribute-Take-${state.code}-${action}.${action==='csv'?'csv':'json'}`,await api('export?type='+action,undefined,token),action==='csv'?'text/csv':'application/json');
   else{await api('admin/'+action,{roundId:b.dataset.round||state.roundId,id:Number(b.dataset.id)},token);await refresh(true);}
  }catch(err){notice(err.message);}finally{busy=false;updateClock();}
 });
-document.addEventListener('input',()=>{if(selectedMode==='zones')updateZonesTotals();});
+document.addEventListener('input',()=>{if(selectedMode==='zones')updateZonesTotals();if(selectedMode==='frontier')frontierInput();});
+document.addEventListener('change',e=>{if(selectedMode==='frontier'&&e.target.closest?.('#frontier-order')){frontierInput();render();}});
+document.addEventListener('keydown',e=>{const tile=e.target.closest?.('[data-action=frontier-tile]');if(tile&&['Enter',' '].includes(e.key)){e.preventDefault();tile.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
 refresh(true);setInterval(()=>{if(role==='teacher'||!document.hidden)refresh();},2000);setInterval(updateClock,200);

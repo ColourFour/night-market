@@ -10,11 +10,11 @@ test('Paired rehearsal UI works with storage blocked and reveals the exact resul
  const Form=globalThis.FormData;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=city2');
+  const transport=await import('../docs/pairs-transport.js?v=frontier1');
   const teacher=()=>transport.api('teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async action=>listeners.get('click')({target:{closest:()=>({dataset:{action,round:(html().match(/data-round="([^"]+)"/)||[])[1]}})}});
-  assert.match(html(),/Choose your experiment/);assert.match(html(),/Under construction/);await click('modePairs');
+  assert.match(html(),/Choose your experiment/);assert.match(html(),/Frontier Cities/);await click('modePairs');
   assert.match(html(),/Unlock classmates/);assert.match(elements.get('#demo-tools').innerHTML,/Temporary/);
   assert.match(html(),/Reset game/);await click('showReset');assert.match(html(),/Confirm reset/);assert.equal((await teacher()).round,1);await click('cancelReset');assert.doesNotMatch(html(),/Confirm reset/);
   await click('demoStudent');assert.match(html(),/Two choices/);assert.match(html(),/Reveal my practice result/);
