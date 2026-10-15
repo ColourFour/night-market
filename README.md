@@ -14,6 +14,8 @@ Students register by typing a name (1–60 characters); ordinary spelling, punct
 
 ## Frontier Cities — a civilisation in one lesson
 
+**Bot introduction:** Students first see a private three-round simulation (up to five minutes: 80 seconds to choose + 20 seconds to read each report). Round 1 teaches expansion and ties while bots recruit/develop; round 2 compares development and recruitment while a bot holds and another expands; round 3 offers a mutual alliance and trade while a rival contests a district. Every round uses the real engine and the same action/outcome report as class play. All five actions are demonstrated. Early reveal is allowed; no choice becomes hold. The tutorial automatically advances after each review, saves progress on the device, and never submits classroom orders or scores. After three rounds, students enter the class world. The teacher has a **Preview 3-round bot introduction** button; students can replay it. Wait for the class to finish the introduction before starting the live world.
+
 **Round flow:** choose and save one secret order → automatic simultaneous resolution → read the report for 20 seconds. The active phase is highlighted. A saved order does not move units immediately. The teacher can pause results for discussion.
 
 Instructions use short bullets, a first-move example, and five selectable order cards. A student-only animated dashed arrow previews their planned route; it is labelled as a plan. A gentle timer border signals the last 30 seconds, the saved-order meter fills as classmates submit, and a brief entrance animation marks revealed results. Reduced-motion preferences disable these animations.

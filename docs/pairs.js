@@ -1,4 +1,5 @@
-import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=clarity1';
+import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=tutorial1';
+import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=tutorial1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
 import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=clarity1';
@@ -69,14 +70,15 @@ function render(){
  const focused=document.activeElement,focusName=focused?.name,focusForm=focused?.form?.id,focusPosition=focused?.selectionStart;
  const forms=new Map();document.querySelectorAll('form').forEach(f=>{if(f.id==='frontier-order')return;forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
  const opened=[...document.querySelectorAll('details[open][data-key]')].map(e=>e.dataset.key);
- $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='frontier'?frontierView(state,role)+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
+ $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='frontier'?tutorialView(state,role,token)+(tutorialActive()?'':frontierView(state,role))+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
  for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
- $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
+ $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${selectedMode==='frontier'&&tutorialActive()?'':button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
  updateClock();updateZonesTotals();zonesAfterRender();
  if(focusName&&focusForm){const form=[...document.querySelectorAll('form')].find(f=>f.id===focusForm),el=form&&[...form.elements].find(e=>e.name===focusName);if(el){el.focus?.({preventScroll:true});if(el.type==='text'||el.tagName==='TEXTAREA')try{el.setSelectionRange(focusPosition,focusPosition);}catch{}}}
 }
 function updateClock(){
+ if(selectedMode==='frontier'&&tutorialActive()){if(tutorialClock())render();return;}
  if(selectedMode==='frontier'){frontierClock(state,Date.now()+clockOffset,busy);return;}
  if(!state||state.empty||selectedMode!=='pairs')return;
  const deadline=state.status==='open'?state.deadline:state.status==='revealed'?state.nextRoundAt:null;
@@ -124,6 +126,7 @@ document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
   if(['modePairs','modeZones','modeFrontier','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
+  else if(tutorialAction(action,b.dataset,state,role,token)){render();}
   else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json'].includes(action)){const type=action.slice(9);download('Frontier-Cities.'+type,await api('frontier/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
   else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}

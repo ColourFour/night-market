@@ -19,7 +19,7 @@ test('Name confirmation always leads to game selection; Enter never chooses a ga
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'join-form'}});
   assert.match(html(),/Choose your experiment/);assert.match(html(),/Welcome, New Student/);assert.match(html(),/Economic Zones/);assert.match(html(),/Frontier Cities/);assert.doesNotMatch(html(),/teacher is preparing the world|Reveal my practice result/);
   await listeners.get('click')({target:{closest:()=>({dataset:{action:'modeFrontier'}})}});
-  assert.match(html(),/teacher is preparing the world/);
+  assert.match(html(),/Start the 3-round introduction/);
   await listeners.get('click')({target:{closest:()=>({dataset:{action:'chooseGame'}})}});
   assert.match(html(),/Welcome, New Student/);
   await listeners.get('click')({target:{closest:()=>({dataset:{action:'modePairs'}})}});
