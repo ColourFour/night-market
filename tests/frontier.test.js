@@ -36,3 +36,12 @@ test('map adjacency, protected homes and ties are enforced',()=>{assert.equal(ad
 test('concurrent requests commit 15 orders and resolve the deadline once with CAS retries',async()=>{const c=client();c.create();c.call('admin/start',{});let state=c.state,version=0;const tokens=state.pairs.players.map(p=>p.token),now=state.frontier.deadline-1;async function transaction(id,at,body){for(let attempt=0;attempt<60;attempt++){const v=version,snapshot=structuredClone(state);const r=handleFrontier(snapshot,{method:body?'POST':'GET',url:'/api/frontier/'+(body?'order':'state'),headers:{authorization:'Bearer '+tokens[id]},body:body?{id:snapshot.frontier.id,roundId:snapshot.frontier.roundId,...body}:undefined},{now:at});await new Promise(r=>setTimeout(r,Math.floor(Math.random()*3)));if(!r.changed)return r;if(v!==version)continue;state=r.state;version++;return r;}throw Error('CAS retries exhausted');}
  await Promise.all(tokens.map((_,id)=>transaction(id,now,{action:'hold'})));assert.equal(Object.keys(state.frontier.orders).length,15);await Promise.all(tokens.map((_,id)=>transaction(id,now+1)));assert.equal(state.frontier.history.length,1);assert.equal(state.frontier.status,'revealed');
 });
+test('Revealed round ledgers record actual before/after costs, trade, harvest and upkeep without aliases',()=>{
+ const g=simple(3);g.status='open';g.round=1;
+ g.orders={0:{action:'trade',resource:'ore',ally:1},1:{action:'hold',ally:0},2:{action:'develop',tile:6,ally:null}};
+ resolveFrontier(g,1234);const h=g.history[0],a=h.outcomes.find(x=>x.id===0),b=h.outcomes.find(x=>x.id===2);
+ assert.deepEqual(a.before.resources,{food:12,ore:12,gold:12});assert.deepEqual(a.after.resources,{food:12,ore:11,gold:18});
+ assert.deepEqual(b.after.resources,{food:13,ore:11,gold:12});assert.equal(a.before.ally,null);assert.equal(a.after.ally,1);
+ assert.equal(h.harvest.find(x=>x.id===0).gain.ore,2);assert.equal(a.after.resources.ore-a.before.resources.ore,-1);
+ g.players[0].resources.ore=99;assert.equal(a.after.resources.ore,11);assert.equal(a.before.resources.ore,12);
+});

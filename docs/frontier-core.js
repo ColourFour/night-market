@@ -50,6 +50,8 @@ function checkedOrder(g,id,b){
 export function resolveFrontier(g,now=Date.now()){
  if(!['open','paused'].includes(g.status))return;
  const orders=Object.fromEntries(active(g).map(p=>[p.id,g.orders[p.id]||{action:'hold',ally:p.ally,automatic:true}]));
+ const snapshot=p=>({resources:{...p.resources},territories:g.tiles.filter(t=>t.owner===p.id).map(t=>t.id),units:g.tiles.filter(t=>t.owner===p.id).reduce((n,t)=>n+t.troops,0),score:frontierScore(g,p),ally:p.ally,eliminated:p.eliminated});
+ const beforePlayers=Object.fromEntries(g.players.map(p=>[p.id,snapshot(p)]));
  const events=[],before=g.tiles.map(t=>t.owner),participants=active(g),names=id=>g.players.find(p=>p.id===id)?.name||'Unclaimed';
  const log=(text,type='economy')=>events.push({text,type});
  const attacks=(id,other)=>{const o=orders[id];return o?.action==='move'&&before[o.to]===other;};
@@ -98,7 +100,7 @@ export function resolveFrontier(g,now=Date.now()){
   RESOURCES.forEach(k=>p.resources[k]=Math.min(99,p.resources[k]));
   harvest.push({id:p.id,gain,upkeep,shortfall});
  }
- g.history.push({round:g.round,at:now,orders,events,harvest,standings:frontierStandings(g)});
+ g.history.push({round:g.round,at:now,orders,events,harvest,standings:frontierStandings(g),outcomes:g.players.map(p=>({id:p.id,before:beforePlayers[p.id],after:snapshot(p)}))});
  g.orders={};g.deadline=null;g.remaining=null;
  g.status=g.round>=g.settings.rounds||active(g).length<=1?'complete':'revealed';g.nextRoundAt=g.status==='revealed'?now+20000:null;g.held=false;
 }

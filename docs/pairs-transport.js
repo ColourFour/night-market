@@ -1,4 +1,4 @@
-import {handleFrontier,adjacent} from './frontier-core.js?v=frontier1';
+import {handleFrontier,adjacent} from './frontier-core.js?v=clarity1';
 import {handleZones} from './zones-core.js?v=open-entry1';
 import {handlePairs,pairSecret} from './pairs-core.js?v=open-entry1';
 import {API_BASE} from './config.js';

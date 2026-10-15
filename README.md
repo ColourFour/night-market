@@ -14,6 +14,13 @@ Students register by typing a name (1–60 characters); ordinary spelling, punct
 
 ## Frontier Cities — a civilisation in one lesson
 
+**Round flow:** choose and save one secret order → automatic simultaneous resolution → read the report for 20 seconds. The active phase is highlighted. A saved order does not move units immediately. The teacher can pause results for discussion.
+
+Instructions use short bullets, a first-move example, and five selectable order cards. A student-only animated dashed arrow previews their planned route; it is labelled as a plan. A gentle timer border signals the last 30 seconds, the saved-order meter fills as classmates submit, and a brief entrance animation marks revealed results. Reduced-motion preferences disable these animations.
+
+The round report appears above the map. It shows each student’s revealed action, ally choice, outcome, net territory/resource changes, and final prosperity with its change. Expand “Explain the numbers” for before/after values, army size, harvest and upkeep. The ledger includes actual spending, trade, upkeep and storage caps; income is not presented as net profit. New rounds store exact before/after snapshots. Older records retain their original event logs and clearly mark unavailable changes. Small screens display the table as student cards.
+
+
 Open the same private teacher dashboard, select **Frontier Cities**, select 2–15 participants, and press **Create world**. The shared class roster and student sign-in are reused. Unselected students can watch. Before creating a world, the setup can add extra names up to a shared roster of 15 if Contribute / Take is at fresh practice with no class history. For a larger existing roster, select any 15; no class data needs to be removed.
 
 - **Default lesson:** ten simultaneous 180-second rounds, with 20 seconds to inspect each result, approximately 33 minutes. No submitted order means hold position; ordinary production and upkeep still happen. Saved orders can be revised until the deadline. The teacher can resolve early, pause/resume the current timer or results pause, advance, or end. Keep the teacher dashboard open. Server time controls deadlines. After a total disconnect the next request gives the next round a full window, without skipping unseen rounds.
@@ -173,3 +180,9 @@ District-specific scenes appended to that prefix:
 - **commercial-strip.jpg:** Commercial Strip: thriving mixed-use ordinary business neighborhood, storefronts and family-run food markets, apartment balconies, pedestrian street, discreet delivery robots; jade teal, lantern amber, modest neon. Foreground adult small-business owners and neighbors in contemporary-future casual clothing, approachable everyday people.
 - **innovation-district.jpg:** Innovation District: affluent technology and university district, elegant glass research buildings, planted terraces, light rail, clean rain-reflecting plaza, blue holographic abstract wayfinding; cyan silver and warm window light. Foreground adult researchers and designers in understated futuristic coats, human and welcoming, varied ages.
 - **skyline-core.jpg:** Skyline Core: richest futuristic financial center, spectacular tall graceful neon skyscrapers, rooftop skybridges, luxury garden terraces above a river, beautiful high-rise homes; violet indigo and champagne gold. Foreground adult professionals and residents in tailored high-collar futuristic coats, restrained elegance, wealthy yet plausible 2056 city.
+
+### Frontier Cities clarity artwork
+
+Generated with the built-in image-generation tool, saved as `docs/assets/frontier-cities-dusk.jpg` (web-optimized JPEG). Decorative only; the SVG map remains authoritative.
+
+Prompt: “Use case: stylized-concept. Asset type: wide illustrated banner for Frontier Cities, a high-school classroom strategy game. Create a cinematic panoramic illustration of a hopeful near-future civilisation at blue hour, seen from an elevated hillside. A compact amber-lit home city in the foreground connects by luminous teal roads to three clearly readable districts: terraced green food gardens, a copper-and-stone industrial ore district, and a shimmering gold-lit commercial harbour. Small civilian transport convoys travel between districts; two neighbouring city beacons suggest possible cooperation. Elegant navy, teal and warm lantern gold palette, atmospheric depth, painterly architectural detail, premium strategy-game art, consistent with a futuristic night-market website. Leave the left third darker and quieter for HTML title overlay. Landscape 3:2 or wider. No text, labels, numbers, UI panels, logos or watermark. No violence, weapon closeups, ruins, or dystopian suffering. This is decorative artwork, not the actual playable map.”
