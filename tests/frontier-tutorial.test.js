@@ -21,3 +21,37 @@ test('Alternative choices teach a tied attack, recruiting and rejected trade; ti
  const timeout=newTutorial('No click');beginTutorialRound(timeout,0);tickTutorial(timeout,80000);assert.equal(timeout.game.history[0].orders[0].automatic,true);
  assert.equal(LESSONS.length,3);assert.equal(timeout.game.history[0].outcomes[0].before.score,12);
 });
+
+test('Students can skip any tutorial phase, and the choice survives a reload without changing class state',async()=>{
+ const {tutorialView,tutorialAction,tutorialActive}=await import('../docs/frontier-tutorial.js');
+ for(const phase of ['intro','choose','review','complete']){
+  const state={status:'waiting',me:{name:'Returning learner',participating:true}},token='skip-'+phase;
+  tutorialView(state,'student',token);
+  if(phase!=='intro')tutorialAction('frontier-tutorial-start',{},state,'student',token,0);
+  if(['review','complete'].includes(phase))tutorialAction('frontier-tutorial-reveal',{},state,'student',token,1);
+  if(phase==='complete'){
+   const {device}=await import('../docs/browser-storage.js?v=lobby1');
+   const saved=JSON.parse(device.getItem('frontier-introduction-v1'));saved.tutorial.phase='complete';device.setItem('frontier-introduction-v1',JSON.stringify(saved));
+   tutorialView(state,'student','other');tutorialView(state,'student',token);
+  }
+  assert.match(tutorialView(state,'student',token),/Skip introduction · Join class game/);
+  const before=JSON.stringify(state);tutorialAction('frontier-tutorial-skip',{},state,'student',token);
+  assert.match(tutorialView(state,'student',token),/Replay bot introduction/);assert.equal(tutorialActive(),false);assert.equal(JSON.stringify(state),before);
+  const reloaded=await import('../docs/frontier-tutorial.js?reload-'+phase);
+  assert.doesNotMatch(reloaded.tutorialView(state,'student',token),/Start the 3-round introduction/);assert.equal(reloaded.tutorialActive(),false);
+ }
+});
+
+test('A started world interrupts practice and returning participants bypass it, while teacher preview remains available',async()=>{
+ const ui=await import('../docs/frontier-tutorial.js');
+ for(const status of ['open','paused','revealed','complete']){
+  const state={status:'waiting',me:{name:'Learner',participating:true}},token='started-'+status;
+  ui.tutorialView(state,'student',token);ui.tutorialAction('frontier-tutorial-start',{},state,'student',token,0);
+  state.status=status;const before=JSON.stringify(state);
+  assert.equal(ui.tutorialView(state,'student',token),'');assert.equal(ui.tutorialActive(),false);assert.equal(JSON.stringify(state),before);
+  const fresh=await import('../docs/frontier-tutorial.js?live-'+status);
+  assert.equal(fresh.tutorialView(state,'student','new-device-'+status),'');assert.equal(fresh.tutorialActive(),false);
+ }
+ const teacher={status:'open'};ui.tutorialAction('frontier-tutorial-replay',{},teacher,'teacher','teacher');
+ assert.match(ui.tutorialView(teacher,'teacher','teacher'),/Start the 3-round introduction/);assert.equal(ui.tutorialActive(),true);
+});

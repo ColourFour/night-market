@@ -1,4 +1,4 @@
-import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=tutorial1';
+import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=tutorial2';
 import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=tutorial1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
@@ -126,7 +126,7 @@ document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
   if(['modePairs','modeZones','modeFrontier','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
-  else if(tutorialAction(action,b.dataset,state,role,token)){render();}
+  else if(tutorialAction(action,b.dataset,state,role,token)){render();if(action==='frontier-tutorial-skip')await refresh(true);}
   else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json'].includes(action)){const type=action.slice(9);download('Frontier-Cities.'+type,await api('frontier/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
   else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
@@ -142,4 +142,5 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',()=>{if(selectedMode==='zones')updateZonesTotals();if(selectedMode==='frontier')frontierInput();});
 document.addEventListener('change',e=>{if(selectedMode==='frontier'&&e.target.closest?.('#frontier-order')){frontierInput();render();}});
 document.addEventListener('keydown',e=>{const tile=e.target.closest?.('[data-action=frontier-tile]');if(tile&&['Enter',' '].includes(e.key)){e.preventDefault();tile.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true);});
 refresh(true);setInterval(()=>{if(role==='teacher'||!document.hidden)refresh();},2000);setInterval(updateClock,200);
