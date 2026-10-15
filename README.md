@@ -2,7 +2,7 @@
 
 Artwork for the future-city edition was created with the built-in image-generation tool. Final web assets are in `docs/assets/zones/` (five JPEG images). The exact generation prompt set is recorded at the end of this guide.
 
-Open **https://colourfour.github.io/night-market/**. Students choose their name, then choose **Contribute / Take**, **Economic Zones**, or **Frontier Cities**. The original Night Market remains at **https://colourfour.github.io/night-market/market.html**, with its own saved class state.
+Open **https://colourfour.github.io/night-market/**. Students type their name and click **Contribute / Take**, **Economic Zones**, or **Frontier Cities** on the same screen. Names match the existing class roster regardless of capitalisation or extra spaces; unknown or ambiguous names are rejected. Returning browsers keep their seat and go straight to game selection. The original Night Market remains at **https://colourfour.github.io/night-market/market.html**, with its own saved class state.
 
 ## Frontier Cities — a civilisation in one lesson
 
@@ -23,7 +23,7 @@ The implementation reuses the existing server-only JSON state and atomic compare
 
 ## Economic Zones: future-city edition
 
-Students choose their name, then Economic Zones. Each of the five districts has a unique generated image and an **Explore district** panel showing its residents, economy, expected return and uncertainty. Students allocate exactly 100 nonnegative integer advertisement units. This is fictional money; ads are a fixed budget, not a monetary expense.
+Students type their name and choose Economic Zones. Each of the five districts has a unique generated image and an **Explore district** panel showing its residents, economy, expected return and uncertainty. Students allocate exactly 100 nonnegative integer advertisement units. This is fictional money; ads are a fixed budget, not a monetary expense.
 
 | District | Expected net return if won | Standard deviation | About 68% of returns | About 95% of returns |
 | --- | ---: | ---: | --- | --- |
@@ -49,7 +49,7 @@ This version models students competing individually. Later extensions may compar
 
 ## Contribute / Take: student flow and a rehearsal
 
-Students open the public page, choose their name, select **Contribute / Take**, and read a short explanation of simultaneous Contribute / Take decisions. They play **one practice round against a random robot**: each robot choice has a 50–50 chance, independent of the student's choice. The result explains both choices and displays **+0 😢**, **+2 ☹️**, **+5 👍**, or **+6 with a larger 👍**. Practice results and the practice leaderboard are separate from class points. Rejoining cannot grant another practice attempt.
+Students open the public page, type their name and click **Contribute / Take**, and read a short explanation of simultaneous Contribute / Take decisions. They play **one practice round against a random robot**: each robot choice has a 50–50 chance, independent of the student's choice. The result explains both choices and displays **+0 😢**, **+2 ☹️**, **+5 👍**, or **+6 with a larger 👍**. Practice results and the practice leaderboard are separate from class points. Rejoining cannot grant another practice attempt.
 
 To preview, use the rehearsal link in `.private/Teacher access.html`. Restart the rehearsal to try the current flow. Select **Contribute / Take**, then choose **Play as Student 1**, make the robot practice choice, then return to **Teacher view**, **Unlock classmates**, and **Start timed round**. Switch back to Student 1, choose an action and use **Simulate classmates**. The other twelve simulated students finish their practice automatically. After the timer expires, inspect the large round score, explanation, total and class leaderboard. The next round starts after 30 seconds. The rehearsal is separate from the real classroom; when storage is blocked it stays usable in memory until the tab closes.
 
@@ -57,7 +57,7 @@ To preview, use the rehearsal link in `.private/Teacher access.html`. Restart th
 
 1. Open `.private/Teacher access.html` from the private chat and choose **Open paired teacher dashboard**. Keep that file private. Public pages have no teacher or rehearsal links.
 2. Use **Reset game** to start a fresh session. Type the displayed code to confirm. Reset archives the previous game, retains the class roster and timer settings, clears all points and practice attempts, signs out student devices, frees every name and returns the game to robot practice. Existing games remain intact when software updates are published; reset when ready to use the new flow.
-3. Share only **https://colourfour.github.io/night-market/**. Students choose their names, read the introduction, complete one robot practice and wait for you. The dashboard shows practice completion and scores. The saved browser session resumes without losing the practice result or class points. **Choose another name / rejoin** releases the current device's seat so it can be selected again. For a new device, first leave on the original device or ask the teacher to use **Recover seat**; selecting an already-active name alone cannot replace its session. This is a classroom trust workflow: students must select only their own name.
+3. Share only **https://colourfour.github.io/night-market/**. Students type their names and choose a game on one screen, read the introduction, complete one robot practice and wait for you. The dashboard shows practice completion and scores. The saved browser session resumes without losing the practice result or class points. **Choose another name / rejoin** releases the current device's seat so it can be selected again. For a new device, first leave on the original device or ask the teacher to use **Recover seat**; selecting an already-active name alone cannot replace its session. This is a classroom trust workflow: students must select only their own name.
 4. Set seconds and opponent rotation before class play. Defaults are **unlimited rounds, 30 seconds, rotating opponents**. Everyone plays every classmate once, then the full rotation repeats with cumulative scores. With thirteen students, each cycle is thirteen rounds: twelve matches and one sit-out per student. Sit-outs score zero. The banner shows the round and cycle. Fixed pairs remain available, with a permanent sit-out for an odd class.
 5. Press **Unlock classmates · start totals at 0**. Class points and the leaderboard start at zero; robot points do not carry over. Students who finished practice move into the class lobby. Late arrivals complete their practice before joining class play. Press **Start timed round** when ready. Practice mode cannot start class rounds or accept class decisions before teacher unlock.
 6. During a round students see their opponent, timer and total. Choices are locked on submission and hidden until reveal. At zero, missing choices automatically become **Take**, including absent students. **Give another 30 seconds** extends an unrevealed round. Once revealed, a round cannot reopen.

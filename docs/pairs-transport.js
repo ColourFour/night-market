@@ -47,3 +47,13 @@ export async function simulateFrontier(){
   request('frontier/order',{...order,id:g.id,roundId:g.roundId},get().pairs.players.find(q=>q.id===p.id).token);
  }
 }
+
+// Match typing to an existing seat; never create a duplicate student or silently replace a session.
+export function matchRosterName(roster,input){
+ const normalize=s=>String(s??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
+ const entered=normalize(input);if(!entered)throw Error('Type your name before choosing a game.');
+ const matches=roster.filter(p=>normalize(p.name)===entered);
+ if(!matches.length)throw Error('That name is not on the class list. Check the spelling or ask your teacher.');
+ if(matches.length>1)throw Error('More than one class entry matches that name. Ask your teacher to make the names distinct.');
+ return matches[0];
+}
