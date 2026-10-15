@@ -1,15 +1,12 @@
 // Frontier Cities: authoritative simultaneous orders, deterministic combat, no client-side trust.
+import {connected,makeHexLand,revealExploration,exploredTiles} from './frontier-geography.js';
 import {pairSecret} from './pairs-core.js';
 export const RESOURCES=['food','ore','gold'];
 export const COLORS=['#f6b75d','#62d7c1','#bc9af8','#f28d9f','#88befb','#d7da75','#ed9d61','#a3c8a5','#c29be0','#70d2e8','#f1bdc8','#98a5f6','#d6bc8e','#9ad7ef','#b8df89'];
 const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});};
 const integer=(n,min,max,label)=>{if(!Number.isInteger(n)||n<min||n>max)fail(label);return n;};
 const active=g=>g.players.filter(p=>!p.eliminated);
-export function adjacent(a,b,count){
- if(a===b)return false;
- const sa=Math.floor(a/3),sb=Math.floor(b/3),ra=a%3,rb=b%3;
- return sa===sb&&Math.abs(ra-rb)===1||ra===rb&&ra>0&&(Math.abs(sa-sb)===1||Math.abs(sa-sb)===count-1);
-}
+export const adjacent=connected;
 export function frontierScore(g,p){
  if(p.eliminated)return 0;
  const owned=g.tiles.filter(t=>t.owner===p.id);
@@ -24,8 +21,10 @@ export function newFrontier(roster,settings={}){
  const seconds=integer(settings.seconds??180,15,180,'Use a timer from 15 to 180 seconds.');
  const rounds=integer(settings.rounds??10,3,30,'Choose 3–30 rounds.');
  const players=roster.map((p,i)=>({id:p.id,name:p.name,color:COLORS[i],resources:{food:12,ore:12,gold:12},ally:null,eliminated:false}));
- const tiles=players.flatMap((p,i)=>Array.from({length:3},(_,r)=>({id:i*3+r,sector:i,ring:r,name:r===0?`${p.name} · Home`:r===1?`Outer ${i+1}`:`Inner ${i+1}`,kind:r===0?'capital':RESOURCES[(i+r-1)%3],owner:r===0?p.id:null,troops:r===0?6:1,level:0,capital:r===0})));
- return {id:pairSecret(),roundId:pairSecret(),status:'waiting',round:0,settings:{seconds,rounds},players,tiles,orders:{},history:[],deadline:null,nextRoundAt:null,held:false,remaining:null};
+ const legacy=settings.layout==='training';
+ const tiles=legacy?players.flatMap((p,i)=>Array.from({length:3},(_,r)=>({id:i*3+r,sector:i,ring:r,name:r===0?`${p.name} · Home`:r===1?`Outer ${i+1}`:`Inner ${i+1}`,kind:r===0?'capital':RESOURCES[(i+r-1)%3],owner:r===0?p.id:null,troops:r===0?6:1,level:0,capital:r===0}))):makeHexLand(players);
+ const g={mapVersion:legacy?1:2,id:pairSecret(),roundId:pairSecret(),status:'waiting',round:0,settings:{seconds,rounds},players,tiles,orders:{},history:[],deadline:null,nextRoundAt:null,held:false,remaining:null};
+ revealExploration(g);return g;
 }
 function checkedOrder(g,id,b){
  const p=g.players.find(p=>p.id===id&&!p.eliminated);if(!p)fail('You are watching this game.');
@@ -39,7 +38,7 @@ function checkedOrder(g,id,b){
  if(action==='recruit'){const t=owned(b.tile);integer(b.units,1,6,'Recruit 1–6 units.');afford('food',b.units);afford('ore',b.units);order.tile=t.id;order.units=b.units;}
  if(action==='move'){
   const from=owned(b.from);integer(b.to,0,g.tiles.length-1,'Choose a destination.');const to=g.tiles[b.to];
-  if(!adjacent(from.id,to.id,g.players.length))fail('Move only along a road to an adjacent territory.');
+  if(!adjacent(from.id,to.id,g))fail('Move / Attack only into a region sharing an edge with your territory.');
   integer(b.units,1,from.troops-1,'Leave at least one unit behind.');
   if(to.capital&&to.owner!==id&&g.round<=2)fail('Home territories are protected during rounds 1 and 2.');
   order.from=from.id;order.to=to.id;order.units=b.units;
@@ -50,7 +49,7 @@ function checkedOrder(g,id,b){
 export function resolveFrontier(g,now=Date.now()){
  if(!['open','paused'].includes(g.status))return;
  const orders=Object.fromEntries(active(g).map(p=>[p.id,g.orders[p.id]||{action:'hold',ally:p.ally,automatic:true}]));
- const snapshot=p=>({resources:{...p.resources},territories:g.tiles.filter(t=>t.owner===p.id).map(t=>t.id),units:g.tiles.filter(t=>t.owner===p.id).reduce((n,t)=>n+t.troops,0),score:frontierScore(g,p),ally:p.ally,eliminated:p.eliminated});
+ const snapshot=p=>({resources:{...p.resources},territories:g.tiles.filter(t=>t.owner===p.id).map(t=>t.id),units:g.tiles.filter(t=>t.owner===p.id).reduce((n,t)=>n+t.troops,0),score:frontierScore(g,p),ally:p.ally,eliminated:p.eliminated,...(g.mapVersion===2?{discovered:p.explored?.length||0}:{})});
  const beforePlayers=Object.fromEntries(g.players.map(p=>[p.id,snapshot(p)]));
  const events=[],before=g.tiles.map(t=>t.owner),participants=active(g),names=id=>g.players.find(p=>p.id===id)?.name||'Unclaimed';
  const log=(text,type='economy')=>events.push({text,type});
@@ -100,6 +99,7 @@ export function resolveFrontier(g,now=Date.now()){
   RESOURCES.forEach(k=>p.resources[k]=Math.min(99,p.resources[k]));
   harvest.push({id:p.id,gain,upkeep,shortfall});
  }
+ revealExploration(g);
  g.history.push({round:g.round,at:now,orders,events,harvest,standings:frontierStandings(g),outcomes:g.players.map(p=>({id:p.id,before:beforePlayers[p.id],after:snapshot(p)}))});
  g.orders={};g.deadline=null;g.remaining=null;
  g.status=g.round>=g.settings.rounds||active(g).length<=1?'complete':'revealed';g.nextRoundAt=g.status==='revealed'?now+20000:null;g.held=false;
@@ -114,8 +114,11 @@ export function handleFrontier(input,req,{now=Date.now()}={}){
  const guard=g=>{if(b.id!==g.id||b.roundId!==g.roundId)fail('The round changed. Review the map and try again.',409);};
  const response=(body,status=200,type='application/json')=>({body,status,type,state,changed,archive});
  function view(g,p=null,isTeacher=false){
-  const out={id:g.id,roundId:g.roundId,status:g.status,round:g.round,settings:g.settings,deadline:g.deadline,nextRoundAt:g.nextRoundAt,held:g.held,remaining:g.remaining,serverNow:now,players:g.players,tiles:g.tiles,history:g.history,standings:frontierStandings(g),submitted:Object.keys(g.orders).length,expected:active(g).length};
+  const out={mapVersion:g.mapVersion||1,id:g.id,roundId:g.roundId,status:g.status,round:g.round,settings:g.settings,deadline:g.deadline,nextRoundAt:g.nextRoundAt,held:g.held,remaining:g.remaining,serverNow:now,players:g.players,tiles:g.tiles,history:g.history,standings:frontierStandings(g),submitted:Object.keys(g.orders).length,expected:active(g).length};
   if(p){const own=g.players.find(q=>q.id===p.id&&q.name===p.name);out.me={id:p.id,name:p.name,participating:!!own,eliminated:own?.eliminated||false,order:own?g.orders[p.id]||null:null};}
+  if(g.mapVersion===2&&p&&out.me.participating&&!out.me.eliminated&&g.status!=='complete'){const known=new Set(exploredTiles(g,p.id));out.tiles=g.tiles.filter(t=>known.has(t.id));out.fog=true;}
+  // Exploration lists are private; completed actions and standings remain public.
+  out.players=g.players.map(({explored,...player})=>player);
   if(isTeacher)out.seats=g.players.map(p=>({id:p.id,name:p.name,eliminated:p.eliminated,submitted:!!g.orders[p.id]}));
   return out;
  }

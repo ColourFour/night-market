@@ -1,4 +1,4 @@
-import {handleFrontier,adjacent} from './frontier-core.js?v=clarity1';
+import {handleFrontier,adjacent} from './frontier-core.js?v=hex1';
 import {handleZones} from './zones-core.js?v=open-entry1';
 import {handlePairs,pairSecret} from './pairs-core.js?v=open-entry1';
 import {API_BASE} from './config.js';
@@ -39,7 +39,7 @@ export async function simulateFrontier(){
  for(const p of g.players){if(p.id===0||p.eliminated)continue;
   const seat=get().pairs.players.find(q=>q.id===p.id),owned=g.tiles.filter(t=>t.owner===p.id);
   let order={action:'hold',ally:null};
-  const from=owned.find(t=>t.troops>=4),target=from&&g.tiles.find(t=>adjacent(from.id,t.id,g.players.length)&&t.owner!==p.id&&(!t.capital||g.round>2)&&from.troops-1>t.troops+t.level);
+  const from=owned.find(t=>t.troops>=4),target=from&&g.tiles.find(t=>adjacent(from.id,t.id,g)&&t.owner!==p.id&&(!t.capital||g.round>2)&&from.troops-1>t.troops+t.level);
   if(target)order={action:'move',from:from.id,to:target.id,units:from.troops-1,ally:null};
   else if(p.resources.food>=4&&p.resources.ore>=4)order={action:'recruit',tile:owned[0].id,units:4,ally:null};
   else if(p.resources.ore>=4&&p.resources.gold>=3&&owned.some(t=>t.level<3))order={action:'develop',tile:owned.find(t=>t.level<3).id,ally:null};

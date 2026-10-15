@@ -14,7 +14,7 @@ test('15 clients complete ten timed rounds: absent player, reveal-once, exports,
  for(let round=1;round<=10;round++){
   for(let id=0;id<14;id++)assert.equal(c.call('order',{action:round<=3?'develop':'hold',tile:id*3},id).status,200);
   assert.equal(c.call('state',undefined,1).body.history.length,round-1);c.now=c.state.frontier.deadline;c.call('state',undefined,2);const g=c.state.frontier;assert.equal(g.history.length,round);assert.equal(g.history.at(-1).orders[14].automatic,true);c.call('state',undefined,0);assert.equal(c.state.frontier.history.length,round);
-  for(const p of g.players){for(const x of Object.values(p.resources))assert.ok(Number.isInteger(x)&&x>=0&&x<=99);assert.ok(frontierScore(g,p)>=0);}assert.equal(g.tiles.length,45);
+  for(const p of g.players){for(const x of Object.values(p.resources))assert.ok(Number.isInteger(x)&&x>=0&&x<=99);assert.ok(frontierScore(g,p)>=0);}assert.ok(g.tiles.length>=90);assert.equal(g.mapVersion,2);
   if(round<10){c.now=g.nextRoundAt;assert.equal(c.call('state',undefined,3).body.status,'open');}
  }
  assert.equal(c.state.frontier.status,'complete');assert.equal(c.call('export?type=csv').status,200);assert.equal(c.call('export').body.history.length,10);assert.equal(c.call('admin/reset',{confirm:'RESET'}).status,200);assert.equal(c.state.frontier,null);assert.deepEqual(c.state.zones,other);
