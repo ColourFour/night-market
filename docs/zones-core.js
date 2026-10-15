@@ -82,8 +82,9 @@ export function handleZones(input,req,{now=Date.now(),random=uniform}={}){
   if(isTeacher)teacher();else student();
   // Empty, unused experiments can upgrade safely. Existing submissions/results keep their original rules.
   if(state.zones&&state.zones.edition!==2&&!Object.keys(state.zones.submissions).length&&!state.zones.tournament){archive=structuredClone(state);state.zones=fresh();changed=true;}
+  if(state.zones&&['practice','open'].includes(state.zones.status)){for(const p of state.pairs.players)if(!state.zones.roster.some(r=>r.id===p.id)){state.zones.roster.push({id:p.id,name:p.name});changed=true;}}
   if(route==='GET /api/zones/teacher')return response(state.zones?view(game(),null,true):{empty:true,zones:ZONES});
-  if(route==='GET /api/zones/state'){const p=student();return response(state.zones?view(game(),enrolled()):{empty:true,me:{id:p.id,name:p.name},zones:ZONES});}
+  if(route==='GET /api/zones/state'){const p=student();return response(state.zones?view(game(),p):{empty:true,me:{id:p.id,name:p.name},zones:ZONES});}
   if(route==='POST /api/zones/practice'){
    const g=game(),p=enrolled();guard(g);if(g.edition!==2)fail('Ask your teacher to start the future-city edition.',409);
    if(!['practice','open'].includes(g.status))fail('Practice is closed while class results are being revealed.',409);

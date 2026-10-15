@@ -18,10 +18,14 @@ function settings(b){
  if(!['rotate','fixed'].includes(rotation)||!['pause','take'].includes(missing))fail('Choose valid round settings.');
  return {rounds,seconds,rotation,missing};
 }
-const rosterNames=names=>{
- if(!Array.isArray(names)||names.length<2||names.length>40||names.some(n=>typeof n!=='string'||!n.trim()||n.length>60)||new Set(names.map(n=>n.trim())).size!==names.length)fail('Enter 2–40 distinct student names, one per line.');
+const rosterNames=(names,min=2)=>{
+ if(!Array.isArray(names)||names.length<min||names.length>40||names.some(n=>typeof n!=='string'||!n.trim()||n.length>60)||new Set(names.map(n=>n.trim())).size!==names.length)fail('Enter 2–40 distinct student names, one per line.');
  return names.map(n=>n.trim());
 };
+export const normalizeName=name=>String(name??'').normalize('NFKC').trim().replace(/\s+/g,' ');
+export function freshPairs(names=[],config={seconds:30,rotation:'rotate'}){
+ return {code:Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%31]).join(''),settings:settings(config),stage:'practice',status:'waiting',round:1,roundId:pairSecret(),deadline:null,nextRoundAt:null,clockHeld:false,flowVersion:2,choices:{},history:[],players:names.map((name,id)=>({id,name,pin:pin(),token:null,practice:null}))};
+}
 const pin=()=>String(100000+crypto.getRandomValues(new Uint32Array(1))[0]%900000);
 export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
  let state=structuredClone(input),changed=false,archive=null,checkpoint=state,clockChanged=false;
@@ -31,7 +35,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
  const room=()=>state.pairs||fail('Your teacher has not opened a paired game yet.',404);
  const player=()=>room().players.find(p=>p.token&&p.token===token)||fail('Please join again with your name and seat code.',401);
  const guard=r=>{if(b.roundId!==r.roundId)fail('The round has changed. Refresh and try again.',409);};
- const pairs=r=>pairings(r.players.length,r.round,r.settings.rotation);
+ const pairs=r=>{const n=r.participantCount??r.players.length;return n<2?(n?[[0,null]]:[]):pairings(n,r.round,r.settings.rotation);};
  const active=r=>pairs(r).flatMap(pair=>pair.includes(null)?[]:pair);
  const complete=r=>active(r).every(id=>r.choices[id]);
  const publicChoice=d=>d?{choice:d.choice,automatic:!!d.automatic}:null;
@@ -63,8 +67,8 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
   return rows.map(x=>({...x,rank:1+rows.filter(y=>y.total>x.total).length}));
  }
  function view(r,p=null,isTeacher=false){
-  const standingsRows=standings(r),out={stage:r.stage||'class',practiceEnabled:!!r.stage,code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,deadline:r.deadline,nextRoundAt:r.nextRoundAt??null,clockHeld:!!r.clockHeld,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name,joined:!!p.token})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
-  if(p){const pair=pairs(r).find(x=>x.includes(p.id)),other=pair.find(id=>id!==p.id);out.me={id:p.id,name:p.name,...standingsRows.find(x=>x.id===p.id)};out.opponent=other===null?null:{id:other,name:r.players[other].name};out.myChoice=publicChoice(r.choices[p.id]);out.me.practice=p.practice||null;}
+  const standingsRows=standings(r),out={stage:r.stage||'class',practiceEnabled:!!r.stage,code:r.code,round:r.round,roundId:r.roundId,status:r.status,settings:r.settings,participantCount:r.participantCount??r.players.length,deadline:r.deadline,nextRoundAt:r.nextRoundAt??null,clockHeld:!!r.clockHeld,serverNow:now,players:r.players.map(p=>({id:p.id,name:p.name,joined:!!p.token})),pairs:pairs(r),submitted:active(r).filter(id=>r.choices[id]).length,expected:active(r).length,history:r.history,standings:standingsRows};
+  if(p){const pair=pairs(r).find(x=>x.includes(p.id)),other=pair?.find(id=>id!==p.id);out.me={id:p.id,name:p.name,...standingsRows.find(x=>x.id===p.id)};out.me.participating=!!pair;out.opponent=other==null?null:{id:other,name:r.players[other].name};out.myChoice=publicChoice(r.choices[p.id]);out.me.practice=p.practice||null;}
   if(isTeacher){out.seats=r.players.map(p=>({id:p.id,name:p.name,pin:p.pin,joined:!!p.token,practiced:!!p.practice,practiceScore:p.practice?.score??null,submitted:!!r.choices[p.id],bye:!active(r).includes(p.id)}));out.siteUrl=siteUrl;}
   return out;
  }
@@ -86,10 +90,25 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    return response({players:r.players.map(p=>({id:p.id,name:p.name}))});
   }
   if(route==='POST /api/pairs/join'){
-   const r=room();if(b.code!==r.code)fail('Room code not found.',404);
-   const p=r.players.find(p=>p.id===b.id);if(!p)fail('Choose your name from the list.');
+   const r=room();if(b.name===undefined&&b.code!==r.code)fail('Room code not found.',404);
+   let p;
+   if(b.name!==undefined){
+    if(typeof b.name!=='string')fail('Enter your name.');
+    const name=normalizeName(b.name);if(!name||name.length>60||/[\u0000-\u001f\u007f]/.test(name))fail('Enter a name of 1–60 characters.');
+    const matches=r.players.filter(p=>normalizeName(p.name).toLowerCase()===name.toLowerCase());
+    if(matches.length>1)fail('Please add an initial to make your name distinct.',409);
+    p=matches[0];
+    if(!p){
+     if(r.players.length>=40)fail('This classroom is full. Ask your teacher to reset it.',409);
+     // Freeze a running rotation before adding a new seat; its existing matches stay intact.
+     if(r.participantCount===undefined&&(r.status!=='waiting'||r.history.length))r.participantCount=r.players.length;
+     p={id:r.players.length,name,pin:pin(),token:null,practice:null};r.players.push(p);
+     if(state.zones&&['practice','open'].includes(state.zones.status))state.zones.roster.push({id:p.id,name:p.name});
+    }
+   }else p=r.players.find(p=>p.id===b.id);
+   if(!p)fail('Enter your name.');
    if(b.pin!==undefined){if(p.pin!==b.pin)fail('Check your private seat code with your teacher.',401);}
-   else if(p.token&&p.token!==token)fail('This name is already joined on another device. Ask your teacher to recover the seat, or use Choose another name on the original device first.',409);
+   else if(p.token&&p.token!==token)fail('This name is already in use. Add an initial if you are someone else, or ask your teacher to free your name if you changed devices.',409);
    // Only an authenticated existing seat may reconnect without first releasing it.
    p.token=pairSecret();changed=true;return response({token:p.token});
   }
@@ -130,13 +149,13 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    if(action==='create'){
     if(state.pairs)fail('Reset the existing paired game before creating another.');
     const names=rosterNames(b.names),config=settings(b);
-    state.pairs={code:Array.from(crypto.getRandomValues(new Uint8Array(5)),n=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n%31]).join(''),settings:config,stage:'practice',status:'waiting',round:1,roundId:pairSecret(),deadline:null,nextRoundAt:null,clockHeld:false,flowVersion:2,choices:{},history:[],players:names.map((name,id)=>({id,name,pin:pin(),token:null,practice:null}))};changed=true;return response({ok:true});
+    state.pairs=freshPairs(names,config);changed=true;return response({ok:true});
    }
    if(action==='restore'){
     const recovered=structuredClone(b.backup);
     if(recovered?.kind!=='pairs-recovery'||recovered.version!==1)fail('Choose a paired-game recovery file.');
     const r=recovered.room;if(!r||!Array.isArray(r.players)||!Array.isArray(r.history)||!r.choices||typeof r.roundId!=='string'||!Number.isInteger(r.round)||r.round<1)fail('Invalid recovery file.');
-    rosterNames(r.players.map(p=>p.name));r.settings=settings(r.settings);
+    rosterNames(r.players.map(p=>p.name),0);if(r.participantCount!==undefined&&(!Number.isInteger(r.participantCount)||r.participantCount<2||r.participantCount>r.players.length))fail('Invalid recovery participants.');r.settings=settings(r.settings);
     if(!['waiting','open','paused','revealed','complete'].includes(r.status)||!(/^[A-Z2-9]{5}$/).test(r.code))fail('Invalid recovery state.');
     r.players.forEach((p,i)=>{if(p.id!==i||!/^\d{6}$/.test(p.pin)||(p.token!==null&&!/^[a-f0-9]{48}$/.test(p.token)))fail('Invalid recovery roster.');});
     if(r.stage!==undefined&&!['practice','class'].includes(r.stage))fail('Invalid recovery phase.');
@@ -145,7 +164,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
     for(const [id,c] of Object.entries(r.choices)){if(!r.players[Number(id)]||!['contribute','take'].includes(c.choice))fail('Invalid recovered choice.');}
     r.history.forEach((h,i)=>{
      if(h.round!==i+1||!Array.isArray(h.results))fail('Invalid recovery history.');
-     const expected=pairings(r.players.length,h.round,r.settings.rotation);if(h.results.length!==expected.length)fail('Invalid recovery pairings.');
+     const expected=pairings(r.participantCount??r.players.length,h.round,r.settings.rotation);if(h.results.length!==expected.length)fail('Invalid recovery pairings.');
      h.results.forEach((x,j)=>{const [a,b]=expected[j];if(a===null||b===null){if(!x.bye||x.a!==(a??b)||x.b!==null)fail('Invalid bye.');x.scoreA=0;x.scoreB=0;}else{if(x.a!==a||x.b!==b||x.bye)fail('Invalid opponents.');[x.scoreA,x.scoreB]=pairPayoff(x.choiceA,x.choiceB);}});
     });
     if(r.history.length!==r.round-(r.status==='revealed'||r.status==='complete'?0:1))fail('Recovery round does not match history.');
@@ -161,7 +180,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    }else if(action==='configure'){
     if(r.status!=='waiting'||r.history.length)fail('Set the timer and opponents before the first round.');r.settings=settings(b);
    }else if(action==='open'){
-    if(r.stage==='practice')fail('Unlock classmates before starting the round.',409);if(r.status!=='waiting')fail('Advance to a new round first.');r.status='open';r.deadline=now+r.settings.seconds*1000;r.clockHeld=false;
+    if(r.players.length<2)fail('Wait for at least two students to join.',409);if(r.stage==='practice')fail('Unlock classmates before starting the round.',409);if(r.status!=='waiting')fail('Advance to a new round first.');r.participantCount=r.players.length;r.status='open';r.deadline=now+r.settings.seconds*1000;r.clockHeld=false;
    }else if(action==='extend'){
     if(!['paused','open'].includes(r.status))fail('Choices are already revealed. Extra decision time must be added before reveal.');r.status='open';r.deadline=Math.max(now,r.deadline||now)+30000;r.clockHeld=false;r.flowVersion=2;r.settings.missing='take';
    }else if(action==='reveal'){
@@ -185,7 +204,7 @@ export function handlePairs(input,req,{now=Date.now(),siteUrl=''}={}){
    }else if(action==='reset'){
     if(b.confirm!==r.code)fail('Type the room code to confirm.');archive=structuredClone(state);
     r.stage='practice';r.status='waiting';r.round=1;r.roundId=pairSecret();r.deadline=null;r.nextRoundAt=null;r.clockHeld=false;r.flowVersion=2;r.choices={};r.history=[];
-    r.players=r.players.map(p=>({id:p.id,name:p.name,pin:pin(),token:null,practice:null}));
+    delete r.participantCount;r.players=r.players.map(p=>({id:p.id,name:p.name,pin:pin(),token:null,practice:null}));
    }else fail('Unknown action.',404);
    changed=true;return response({ok:true});
   }

@@ -1,6 +1,4 @@
-import {handleFrontier} from '../../../docs/frontier-core.js';
-import {handleZones} from '../../../docs/zones-core.js';
-import {handlePairs} from '../../../docs/pairs-core.js';
+import {handleClassroom,normalizeJoinName,savedDayReport,savedDaysCsv} from '../../../docs/classroom-core.js';
 import {handle} from '../../../docs/core.js';
 const env=(name:string)=>Deno.env.get(name)||'';
 const site=env('NIGHT_MARKET_SITE_URL')||'https://colourfour.github.io/night-market/';
@@ -38,7 +36,7 @@ Deno.serve(async req=>{
     }
     if(['/api/join','/api/lookup','/api/pairs/join','/api/pairs/lookup'].includes(url)){
       // Seat-scoped join limits cannot be bypassed by changing a browser header.
-      const key=(url.startsWith('/api/pairs/')?'pairs:':'market:')+(url.endsWith('/join')?'seat:'+String(body?.id):'lookup');
+      const key=(url.startsWith('/api/pairs/')?'pairs:':'market:')+(url.endsWith('/join')?'seat:'+normalizeJoinName(body?.name??body?.id):'lookup');
       const ok=await query('rpc/night_market_limit',{bucket_key:await hash(key),max_hits:url.endsWith('/join')?12:80,window_seconds:300});
       if(!ok)return reply(429,{error:'Too many joining attempts. Wait five minutes or ask your teacher.'});
     }
@@ -48,7 +46,12 @@ Deno.serve(async req=>{
       const state={...rows[0].game};
       if(teacherOverride)state.teacherKey=teacherOverride;
       if(!/^[a-f0-9]{48}$/.test(state.teacherKey))return reply(503,{error:'Teacher setup is not complete.'});
-      const result=(url.startsWith('/api/frontier/')?handleFrontier:url.startsWith('/api/zones/')?handleZones:url.startsWith('/api/pairs/')?handlePairs:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
+      if(url.startsWith('/api/pairs/archives')){
+        if(req.method!=='GET'||req.headers.get('authorization')!=='Bearer '+state.teacherKey)return reply(401,{error:'Teacher access required.'});
+        const days=await query('night_market_archives?select=saved_at,game&game->>archiveReason=eq.daily-reset&order=id.desc&limit=30');
+        const reports=days.map(savedDayReport);return full.searchParams.get('type')==='csv'?reply(200,savedDaysCsv(reports),'text/csv'):reply(200,reports);
+      }
+      const result=(/^\/api\/(pairs|zones|frontier)\//.test(url)?handleClassroom:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
       if(!result.changed){
         if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')&&!url.startsWith('/api/zones/')&&!url.startsWith('/api/frontier/')){
           const etag='"'+rows[0].version+'"';

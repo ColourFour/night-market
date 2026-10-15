@@ -1,13 +1,13 @@
 import {handleFrontier,adjacent} from './frontier-core.js?v=frontier1';
-import {handleZones} from './zones-core.js?v=city2';
-import {handlePairs,pairSecret} from './pairs-core.js?v=unlimited1';
+import {handleZones} from './zones-core.js?v=open-entry1';
+import {handlePairs,pairSecret} from './pairs-core.js?v=open-entry1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
 let state;export let saved=true;
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));saved=true;}catch{saved=false;}}
 function apiPath(path){return path.startsWith('frontier/')?'/api/frontier/'+path.slice(9):path.startsWith('zones/')?'/api/zones/'+path.slice(6):'/api/pairs/'+path;}
-function request(path,body,token){const r=(path.startsWith('frontier/')?handleFrontier:path.startsWith('zones/')?handleZones:handlePairs)(get(),{url:apiPath(path),method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;persist();}if(r.status>=400)throw Error(r.body.error);return r;}
+function request(path,body,token){if(path.startsWith('archives')){if(token!==get().teacherKey)throw Error('Teacher access required.');return {body:path.includes('csv')?'day,game,student,points':[]};}const r=(path.startsWith('frontier/')?handleFrontier:path.startsWith('zones/')?handleZones:handlePairs)(get(),{url:apiPath(path),method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;persist();}if(r.status>=400)throw Object.assign(Error(r.body.error),{status:r.status});return r;}
 function get(){if(!state){try{state=JSON.parse(localStorage.getItem(KEY));}catch{}if(!state?.pairs)resetDemo();}return state;}
 export function resetDemo(){
  state={schema:1,teacherKey:pairSecret(),room:null,pairs:null};
@@ -46,14 +46,4 @@ export async function simulateFrontier(){
   if(!seat.token)request('join',{code:get().pairs.code,id:p.id});
   request('frontier/order',{...order,id:g.id,roundId:g.roundId},get().pairs.players.find(q=>q.id===p.id).token);
  }
-}
-
-// Match typing to an existing seat; never create a duplicate student or silently replace a session.
-export function matchRosterName(roster,input){
- const normalize=s=>String(s??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
- const entered=normalize(input);if(!entered)throw Error('Type your name before choosing a game.');
- const matches=roster.filter(p=>normalize(p.name)===entered);
- if(!matches.length)throw Error('That name is not on the class list. Check the spelling or ask your teacher.');
- if(matches.length>1)throw Error('More than one class entry matches that name. Ask your teacher to make the names distinct.');
- return matches[0];
 }
