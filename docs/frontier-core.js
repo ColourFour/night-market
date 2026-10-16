@@ -8,6 +8,7 @@ const fail=(message,status=400)=>{throw Object.assign(Error(message),{status});}
 const integer=(n,min,max,label)=>{if(!Number.isInteger(n)||n<min||n>max)fail(label);return n;};
 const active=g=>g.players.filter(p=>!p.eliminated);
 export const adjacent=connected;
+export const actionLimit=g=>expanded(g)?(g.round>=5?Infinity:3):1;
 export function frontierScore(g,p){
  if(p.eliminated)return 0;
  const owned=g.tiles.filter(t=>t.owner===p.id);
@@ -54,7 +55,8 @@ function checkedOrder(g,id,b){
 export function checkedPlan(g,id,b){
  if(!expanded(g))return checkedOrder(g,id,b);
  const actions=b.actions??[{...b}],budget=structuredClone(g),p=budget.players.find(p=>p.id===id);
- if(!Array.isArray(actions)||actions.length>3)fail('Plan up to 3 actions per round.');
+ if(!Array.isArray(actions))fail('Submit a list of actions.');
+ if(actions.length>actionLimit(g))fail('Plan up to 3 actions in rounds 1–4. From round 5 there is no overall action limit.');
  const ally=checkedOrder(g,id,{action:'hold',ally:b.ally}).ally,used=new Set();
  const checked=actions.map(a=>{const o=checkedOrder(budget,id,{...a,ally});
   if(o.action==='research'&&used.has('research'))fail('Research at most one technology each round.');

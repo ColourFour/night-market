@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {newFrontier,handleFrontier,resolveFrontier,checkedPlan,adjacent} from '../docs/frontier-core.js';
+import {newFrontier,handleFrontier,resolveFrontier,checkedPlan,adjacent,actionLimit} from '../docs/frontier-core.js';
+import {planForm,planLocal,planPayload} from '../docs/frontier-plan-ui.js?v=world3';
 import {hexDistance} from '../docs/frontier-geography.js';
 import {victoryProgress,checkVictory,TECHNOLOGIES} from '../docs/frontier-strategy.js';
 import {frontierView} from '../docs/frontier-ui.js';
@@ -55,4 +56,62 @@ test('Full 15-client game ends on a threshold with complete action report, repla
   if(c.g.status!=='complete'){c.now=c.g.nextRoundAt;c.call('state');}
  }
  assert.equal(c.g.status,'complete');assert.ok(c.g.round>=6&&c.g.round<30);assert.equal(c.g.winners.length,15);assert.equal(c.g.nextRoundAt,null);const report=c.call('export',undefined,'teacher').body;assert.equal(report.history.length,c.g.round);assert.ok(report.history.every(h=>Object.keys(h.orders).length===15&&h.beforeTiles.length===105&&h.afterTiles.length===105));assert.equal(report.orders,undefined);assert.match(c.call('export?type=roundsCsv',undefined,'teacher').body,/student.*control.*action/);const html=frontierView(c.call('teacher',undefined,'teacher').body,'teacher');assert.match(html,/Final game report/);assert.match(html,/Save report as PDF/);assert.equal(c.call('admin/reset',{confirm:'RESET'},'teacher').status,200);assert.deepEqual(c.state.zones,{preserve:true});
+});
+
+test('Round 5 removes only the overall cap: 15 students save six actions, revise optionally, and resolve every action',()=>{
+ const c=client(15);c.call('admin/start',{},'teacher');
+ for(let round=1;round<=4;round++){
+  assert.equal(actionLimit(c.g),3);
+  assert.equal(c.call('order',{actions:c.g.tiles.filter(t=>t.owner===0).slice(0,4).map(t=>({action:'develop',tile:t.id}))}).status,400);
+  for(let id=0;id<15;id++)assert.equal(c.call('order',{actions:[],ally:null},id).status,200);
+  c.now=c.g.deadline;c.call('state');c.now=c.g.nextRoundAt;c.call('state');
+ }
+ assert.equal(c.g.round,5);assert.equal(actionLimit(c.g),Infinity);
+ for(let id=0;id<15;id++){
+  const actions=[...c.g.tiles.filter(t=>t.owner===id).map(t=>({action:'develop',tile:t.id})),{action:'research',tech:'irrigation'}];
+  assert.equal(c.call('order',{actions,ally:null},id).status,200);
+  assert.equal(c.call('order',{actions:[],ally:null},id).status,200);
+  assert.equal(c.call('order',{actions:actions.slice(0,1),ally:null},id).status,200);
+  assert.equal(c.call('order',{actions,ally:null},id).status,200);
+  const saved=structuredClone(c.g.orders[id]);
+  assert.equal(c.call('order',{actions:[...actions,{action:'recruit',tile:actions[0].tile,units:1}]},id).status,400);
+  assert.deepEqual(c.g.orders[id],saved);
+  assert.equal(c.call('state',undefined,(id+1)%15).body.orders,undefined);
+ }
+ c.now=c.g.deadline;c.call('state');
+ assert.equal(c.g.history.at(-1).round,5);
+ for(let id=0;id<15;id++){assert.equal(c.g.history.at(-1).orders[id].actions.length,6);assert.ok(c.g.players[id].tech.includes('irrigation'));assert.ok(c.g.tiles.filter(t=>t.owner===id).every(t=>t.level===1));}
+ c.now=c.g.nextRoundAt;c.call('state');assert.equal(c.g.round,6);assert.equal(actionLimit(c.g),Infinity);
+ assert.equal(c.call('order',{actions:[],ally:null}).status,200);
+ assert.equal(actionLimit({...c.g,round:20}),Infinity);
+});
+test('Uncapped plans still reserve combined resources and limit each region, research and convoy',()=>{
+ const g=newFrontier(roster(2));g.round=5;g.status='open';
+ const develop=g.tiles.filter(t=>t.owner===0).map(t=>({action:'develop',tile:t.id}));
+ assert.throws(()=>checkedPlan(g,0,{actions:develop}),/need/);
+ g.players[0].resources={food:99,ore:99,gold:99};
+ const seven=[...develop,{action:'research',tech:'irrigation'},{action:'trade',resource:'food'}];
+ assert.equal(checkedPlan(g,0,{actions:seven,ally:1}).actions.length,7);
+ assert.throws(()=>checkedPlan(g,0,{actions:[...seven,{action:'research',tech:'markets'}],ally:1}),/at most one technology/);
+ assert.throws(()=>checkedPlan(g,0,{actions:[...seven,{action:'trade',resource:'ore'}],ally:1}),/at most one trade/);
+});
+test('Round-5 planner allows adding beyond three and shows saved versus unsaved plans without a minimum',()=>{
+ const c=client();c.call('admin/start',{},'teacher');c.g.round=5;c.g.players[0].resources={food:99,ore:99,gold:99};
+ const previousDocument=globalThis.document,previousFormData=globalThis.FormData;
+ try{
+  globalThis.document={querySelector:()=>({})};
+  const own=c.g.tiles.filter(t=>t.owner===0);
+  let html=planForm(c.call('state').body);assert.match(html,/no overall action limit/);assert.match(html,/Every action is optional/);
+  for(let i=0;i<5;i++){
+   globalThis.FormData=class{constructor(){return new Map(Object.entries({action:'develop',tile:String(own[i].id),ally:''}));}};
+   assert.equal(planLocal('frontier-add-action',{}),true);
+   html=planForm(c.call('state').body);
+   if(i===2)assert.match(html,/data-action="frontier-add-action" >Add to plan/);
+  }
+  assert.equal(planPayload().actions.length,5);
+  assert.equal(c.call('order',planPayload()).status,200);assert.match(planForm(c.call('state').body),/Saved on the server/);
+  planLocal('frontier-remove-action',{index:0});assert.match(planForm(c.call('state').body),/Unsaved changes/);
+  assert.equal(c.g.orders[0].actions.length,5);assert.equal(c.call('order',planPayload()).status,200);
+  assert.match(planForm(c.call('state').body),/Saved on the server/);assert.equal(c.g.orders[0].actions.length,4);
+ }finally{globalThis.document=previousDocument;globalThis.FormData=previousFormData;}
 });

@@ -1,8 +1,8 @@
-import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=world2';
-import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=world2';
+import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=world3';
+import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=world3';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=world2';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=world3';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
