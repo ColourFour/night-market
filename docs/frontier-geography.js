@@ -46,7 +46,21 @@ export function makeHexLand(players){
 }
 export function exploredTiles(g,id){
  const p=g.players.find(p=>p.id===id),known=new Set(p?.explored||[]);
- for(const t of g.tiles)if(t.owner===id){known.add(t.id);for(const q of g.tiles)if(connected(t.id,q.id,g))known.add(q.id);}
+ for(const t of g.tiles)if(t.owner===id){known.add(t.id);for(const q of g.tiles)if(g.rulesVersion===3?hexDistance(t,q)<=2:connected(t.id,q.id,g))known.add(q.id);}
  return [...known].sort((a,b)=>a-b);
 }
 export function revealExploration(g){if(g.mapVersion===2)for(const p of g.players)p.explored=exploredTiles(g,p.id);}
+
+// A compact tiling: home centres are three hex steps apart. Five owned regions
+// per founder, two unclaimed neighbours, and borders touching the next city.
+export function makeCompactLand(players){
+ const sites=[];for(let a=-3;a<=3;a++)for(let b=-3;b<=3;b++)sites.push({a,b,q:2*a+b,r:a-3*b});
+ sites.sort((x,y)=>Math.max(Math.abs(x.a),Math.abs(x.b),Math.abs(x.a+x.b))-Math.max(Math.abs(y.a),Math.abs(y.b),Math.abs(y.a+y.b))||x.b-y.b||x.a-y.a);
+ const homes=sites.slice(0,players.length),cells=[],neutral=[];
+ for(const [i,h]of homes.entries()){
+  const p=players[i],owned=[h,...HEX_DIRECTIONS.slice(0,4).map(([q,r])=>({q:h.q+q,r:h.r+r}))];
+  owned.forEach((c,j)=>cells.push({...c,kind:j===0?'capital':['food','ore','gold','food'][j-1],owner:p.id,troops:j===0?6:2,level:0,capital:j===0,founder:p.name}));
+  HEX_DIRECTIONS.slice(4).forEach(([q,r],j)=>neutral.push({q:h.q+q,r:h.r+r,kind:j?'ore':'gold',owner:null,troops:1,level:0,capital:false}));
+ }
+ const all=[...cells,...neutral];return all.map((c,id)=>{const coast=all.filter(t=>hexDistance(c,t)===1).length<6;return {...c,id,name:c.capital?`${c.founder} · Home`:`${{food:'Greenfields',ore:'Ironridge',gold:'Sunport'}[c.kind]} ${id+1}`,terrain:c.capital?'city':c.kind==='food'?(id%2?'forest':'fields'):c.kind==='ore'?'mountains':coast?'harbour':'town',coast};});
+}

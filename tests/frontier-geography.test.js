@@ -4,10 +4,10 @@ import {newFrontier,handleFrontier,adjacent,resolveFrontier} from '../docs/front
 import {hexDistance,tilePosition} from '../docs/frontier-geography.js';
 import {renderHexMap,mapControl} from '../docs/frontier-map-ui.js';
 const roster=n=>Array.from({length:n},(_,id)=>({id,name:'Founder '+id,token:'seat-'+id}));
-function client(n=13){let state={teacherKey:'teacher',pairs:{players:roster(n)},frontier:newFrontier(roster(n))};let now=1000;return {get state(){return state;},set now(v){now=v;},call(path,body,who=0){const g=state.frontier,r=handleFrontier(state,{method:body?'POST':'GET',url:'/api/frontier/'+path,headers:{authorization:'Bearer '+(who==='teacher'?'teacher':'seat-'+who)},body:body?{id:g.id,roundId:g.roundId,...body}:undefined},{now});if(r.changed)state=r.state;return r;}};}
+function client(n=13){let state={teacherKey:'teacher',pairs:{players:roster(n)},frontier:newFrontier(roster(n),{edition:'classic'})};let now=1000;return {get state(){return state;},set now(v){now=v;},call(path,body,who=0){const g=state.frontier,r=handleFrontier(state,{method:body?'POST':'GET',url:'/api/frontier/'+path,headers:{authorization:'Bearer '+(who==='teacher'?'teacher':'seat-'+who)},body:body?{id:g.id,roundId:g.roundId,...body}:undefined},{now});if(r.changed)state=r.state;return r;}};}
 test('2–15 players get connected hex land, distinct interior homes and one-edge movement',()=>{
  for(let n=2;n<=15;n++){
-  const g=newFrontier(roster(n));assert.equal(g.mapVersion,2);assert.equal(new Set(g.tiles.map(t=>`${t.q},${t.r}`)).size,g.tiles.length);
+  const g=newFrontier(roster(n),{edition:'classic'});assert.equal(g.mapVersion,2);assert.equal(new Set(g.tiles.map(t=>`${t.q},${t.r}`)).size,g.tiles.length);
   const seen=new Set([0]),queue=[g.tiles[0]];for(const a of queue)for(const b of g.tiles)if(!seen.has(b.id)&&adjacent(a.id,b.id,g)){seen.add(b.id);queue.push(b);}assert.equal(seen.size,g.tiles.length);
   for(const p of g.players){const h=g.tiles.find(t=>t.capital&&t.owner===p.id);assert.ok(h);assert.equal(g.tiles.filter(t=>adjacent(h.id,t.id,g)).length,6);assert.equal(p.explored.length,7);assert.equal(g.tiles[h.id+1].kind,'food');assert.equal(g.tiles[h.id+2].kind,'ore');assert.ok(adjacent(h.id,h.id+1,g));}
   for(const a of g.tiles)for(const b of g.tiles){assert.equal(adjacent(a.id,b.id,g),hexDistance(a,b)===1);if(adjacent(a.id,b.id,g)){const x=tilePosition(a),y=tilePosition(b);assert.ok(Math.abs(Math.hypot(x.x-y.x,x.y-y.y)-54*Math.sqrt(3))<.001);}}

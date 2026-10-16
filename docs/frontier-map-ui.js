@@ -1,5 +1,5 @@
-import {tilePosition,HEX_DIRECTIONS} from './frontier-geography.js?v=hex1';
-import {adjacent} from './frontier-core.js?v=hex1';
+import {tilePosition,HEX_DIRECTIONS} from './frontier-geography.js?v=world2';
+import {adjacent} from './frontier-core.js?v=world2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const colors={capital:'#567d70',food:'#527d4d',ore:'#767c80',gold:'#a38a59'};
 let camera=null,cameraKey='',world=null;
@@ -8,7 +8,7 @@ function bounds(g){const p=g.tiles.map(tilePosition);return {left:Math.min(...p.
 function home(g){return g.tiles.find(t=>t.owner===g.me?.id&&t.capital)||g.tiles.find(t=>t.owner===g.me?.id)||g.tiles[0];}
 function fit(g){const b=bounds(g);camera={x:(b.left+b.right)/2,y:(b.top+b.bottom)/2,w:Math.max(b.right-b.left,(b.bottom-b.top)*1.3)};}
 function clampCamera(){const b=bounds(world);camera.w=Math.max(280,Math.min(camera.w,Math.max(760,b.right-b.left+180,(b.bottom-b.top+180)*1.3)));camera.x=Math.max(b.left,Math.min(b.right,camera.x));camera.y=Math.max(b.top,Math.min(b.bottom,camera.y));}
-export function mapControl(action){if(!action.startsWith('frontier-map-')||!world)return false;const a=action.slice(13);if(a==='home'){const p=tilePosition(home(world));camera={...p,w:420};}if(a==='known')fit(world);if(a==='in')camera.w/=1.3;if(a==='out')camera.w*=1.3;if(a==='left')camera.x-=camera.w*.24;if(a==='right')camera.x+=camera.w*.24;if(a==='up')camera.y-=camera.w*.18;if(a==='down')camera.y+=camera.w*.18;clampCamera();return true;}
+export function mapControl(action){if(!action.startsWith('frontier-map-')||!world)return false;const a=action.slice(13);if(a==='home'){const p=tilePosition(home(world));camera={...p,w:world.rulesVersion===3?620:420};}if(a==='known')fit(world);if(a==='in')camera.w/=1.3;if(a==='out')camera.w*=1.3;if(a==='left')camera.x-=camera.w*.24;if(a==='right')camera.x+=camera.w*.24;if(a==='up')camera.y-=camera.w*.18;if(a==='down')camera.y+=camera.w*.18;clampCamera();return true;}
 function scenery(t,x,y){
  const forest=`<g fill="#294f3b" stroke="#719362" stroke-width=".8"><path d="M-25 8l9-25 9 25zM-8 3l10-28 10 28zM13 12l9-24 9 24z"/><path d="M-16 9v9M2 3v13M22 12v8" stroke="#bca078" stroke-width="3"/></g>`;
  const fields=`<g stroke="#bfd078" stroke-width="2" opacity=".65"><path d="M-35 0L5-20M-30 9L15-14M-23 18L24-7M-12 23L32 2"/></g>`;
@@ -19,7 +19,7 @@ function scenery(t,x,y){
 }
 export function renderHexMap(g,selected,draft){
  world=g;const key=`${g.id}:${g.me?.id??'teacher'}`;
- if(cameraKey!==key){cameraKey=key;if(g.me?.participating||g.me?.id!==undefined){const p=tilePosition(home(g));camera={...p,w:420};}else fit(g);}
+ if(cameraKey!==key){cameraKey=key;if(g.me?.participating||g.me?.id!==undefined){const p=tilePosition(home(g));camera={...p,w:world.rulesVersion===3?620:420};}else fit(g);}
  clampCamera();const h=camera.w/1.3,vb=`${camera.x-camera.w/2} ${camera.y-h/2} ${camera.w} ${h}`;
  const ownPlan=g.status==='open'&&g.me?.participating&&draft.action==='move'&&!g.me.eliminated;
  const source=ownPlan&&g.tiles.find(t=>t.id===Number(draft.from)&&t.owner===g.me.id),target=source&&g.tiles.find(t=>t.id===Number(draft.to)&&adjacent(source.id,t.id,g));
@@ -29,7 +29,7 @@ export function renderHexMap(g,selected,draft){
  const tiles=g.tiles.map(t=>{
   const {x,y}=tilePosition(t),owner=g.players.find(p=>p.id===t.owner),border=owner?.color||'#c3d0ac';
   const chosen=selected===t.id,near=neighbours.has(t.id),planned=target?.id===t.id;
-  return `<g role="button" tabindex="0" data-action="frontier-tile" data-tile="${t.id}" aria-label="${esc(t.name)}, ${esc(owner?.name||'unclaimed')}, ${t.troops} units, development ${t.level}" class="hex-region ${chosen?'selected':''} ${near?'neighbour':''} ${planned?'planned-target':''}"><polygon class="hex-land" points="${points(x,y)}" fill="${colors[t.kind]}" stroke="${chosen?'#fff5ca':border}" stroke-width="${chosen?4:owner?3:1}"/><polygon points="${points(x,y)}" fill="url(#hex-light)" pointer-events="none"/>${t.coast?`<path d="M${x-34},${y+23}q15-6 30 0t30 0" fill="none" stroke="#96cecb" stroke-width="3" opacity=".65"/>`:''}${scenery(t,x,y)}<text x="${x-29}" y="${y-29}" class="hex-number">${t.id+1}</text>${owner?`<circle cx="${x+28}" cy="${y-29}" r="7" fill="${owner.color}" stroke="#12212b" stroke-width="2"/>`:''}<rect x="${x-27}" y="${y+14}" width="54" height="22" rx="8" fill="#10292c" fill-opacity=".88"/><text x="${x}" y="${y+29}" class="hex-army">${t.troops} ⚑${t.level?' · L'+t.level:''}</text>${near?`<polygon class="hex-reachable" points="${points(x,y,49)}" fill="none" stroke="#f5e0ac" stroke-width="1.6" stroke-dasharray="4 5"/>`:''}</g>`;
+  return `<g role="button" tabindex="0" data-action="frontier-tile" data-tile="${t.id}" aria-label="${esc(t.name)}, ${esc(owner?.name||'unclaimed')}, ${t.troops} units, development ${t.level}" class="hex-region ${chosen?'selected':''} ${near?'neighbour':''} ${planned?'planned-target':''}"><title>${esc(t.name)} — ${esc(owner?.name||'Unclaimed')} · ${t.troops} units · level ${t.level}</title><polygon class="hex-land" points="${points(x,y)}" fill="${colors[t.kind]}" stroke="${chosen?'#fff5ca':border}" stroke-width="${chosen?4:owner?3:1}"/><polygon points="${points(x,y)}" fill="url(#hex-light)" pointer-events="none"/>${t.coast?`<path d="M${x-34},${y+23}q15-6 30 0t30 0" fill="none" stroke="#96cecb" stroke-width="3" opacity=".65"/>`:''}${scenery(t,x,y)}<text x="${x-29}" y="${y-29}" class="hex-number">${t.id+1}</text>${owner?`<circle cx="${x+28}" cy="${y-29}" r="7" fill="${owner.color}" stroke="#12212b" stroke-width="2"/>`:''}<rect x="${x-27}" y="${y+14}" width="54" height="22" rx="8" fill="#10292c" fill-opacity=".88"/><text x="${x}" y="${y+29}" class="hex-army">${t.troops} ⚑${t.level?' · L'+t.level:''}</text>${near?`<polygon class="hex-reachable" points="${points(x,y,49)}" fill="none" stroke="#f5e0ac" stroke-width="1.6" stroke-dasharray="4 5"/>`:''}</g>`;
  }).join('');
  const oldRoads=g.mapVersion!==2?g.tiles.flatMap(a=>g.tiles.filter(b=>a.id<b.id&&adjacent(a.id,b.id,g)).map(b=>{const x=tilePosition(a),y=tilePosition(b);return `<line x1="${x.x}" y1="${x.y}" x2="${y.x}" y2="${y.y}"/>`;})).join(''):'';
  const route=target?(()=>{const a=tilePosition(source),b=tilePosition(target);return `<line class="frontier-planned-route" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" marker-end="url(#frontier-arrow)"/>`;})():'';

@@ -1,8 +1,8 @@
-import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=hex1';
-import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=hex1';
+import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=world2';
+import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=world2';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=hex1';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=world2';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -127,7 +127,7 @@ document.addEventListener('click',async e=>{
  try{
   if(['modePairs','modeZones','modeFrontier','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
   else if(tutorialAction(action,b.dataset,state,role,token)){render();if(action==='frontier-tutorial-skip')await refresh(true);}
-  else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json'].includes(action)){const type=action.slice(9);download('Frontier-Cities.'+type,await api('frontier/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
+  else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json','frontier-roundsCsv'].includes(action)){const type=action.slice(9);download('Frontier-Cities'+(type==='roundsCsv'?'-actions.csv':'.'+type),await api('frontier/export?type='+type,undefined,token),type==='csv'||type==='roundsCsv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
   else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
   else if(action==='demoTeacher'||action==='demoStudent'){role=action==='demoTeacher'?'teacher':'student';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
