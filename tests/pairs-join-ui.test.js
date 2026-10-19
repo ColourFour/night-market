@@ -14,7 +14,7 @@ test('Name confirmation always leads to game selection; Enter never chooses a ga
  globalThis.fetch=async(url,options)=>{const route=new URL(url).pathname.replace(/^.*(?=\/api\/)/,'');const r=handleClassroom(game,{url:route,method:options.method,headers:{authorization:options.headers.Authorization||''},body:options.body?JSON.parse(options.body):undefined});if(r.changed)game=r.state;return {ok:r.status<400,status:r.status,headers:{get:()=> 'application/json'},json:async()=>r.body};};
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,20));const html=()=>elements.get('#app').innerHTML;
-  assert.match(html(),/Your name/);assert.match(html(),/name="name" type="text"/);assert.match(html(),/Continue →/);assert.doesNotMatch(html(),/data-mode=|Contribute \/ Take|Economic Zones|Frontier Cities/);assert.doesNotMatch(html(),/Choose yourself|Join your class|<select|Teacher access|teacher-login|rehearsal|Room code|Private seat code/);
+  assert.match(html(),/Your name/);assert.match(html(),/name="name" type="text"/);assert.match(html(),/Continue →/);assert.doesNotMatch(html(),/data-mode=|Contribute \/ Take|Economic Zones/);assert.match(html(),/href="\?solo=1"/);assert.doesNotMatch(html(),/Choose yourself|Join your class|<select|Teacher access|teacher-login|rehearsal|Room code|Private seat code/);
   globalThis.FormData=class{constructor(){return new Map([['name','  New   Student  ']]);}};
   await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=> 'join-form'}});
   assert.match(html(),/Choose your experiment/);assert.match(html(),/Welcome, New Student/);assert.match(html(),/Economic Zones/);assert.match(html(),/Frontier Cities/);assert.doesNotMatch(html(),/teacher is preparing the world|Reveal my practice result/);

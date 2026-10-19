@@ -1,6 +1,6 @@
 // Private, three-round practice. No requests or scores are sent to the classroom.
-import {newFrontier,resolveFrontier,frontierStandings,adjacent} from './frontier-core.js?v=world3';
-import {frontierMap,frontierTerritory,roundReport} from './frontier-ui.js?v=world3';
+import {newFrontier,resolveFrontier,frontierStandings,adjacent} from './frontier-core.js?v=solo1';
+import {frontierMap,frontierTerritory,roundReport} from './frontier-ui.js?v=solo1';
 import {device} from './browser-storage.js?v=lobby1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const LESSONS=[

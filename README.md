@@ -12,6 +12,21 @@ The teacher game menu has **Past class results · CSV** and **full JSON** downlo
 
 Students register by typing a name (1–60 characters); ordinary spelling, punctuation and non-Latin names work. The shared classroom supports up to 40 names; Frontier still selects at most 15 participants. Students arriving after a paired game starts can practise and watch without changing existing opponents; reset that game to include them. Economic Zones admits new arrivals while practice/submissions are open. A Frontier world keeps its selected participants.
 
+## Frontier Cities — solo robot mode
+
+Open **https://colourfour.github.io/night-market/?solo=1**, or choose **Play Frontier Cities solo** on the name page, game menu or Frontier page. Enter a name and select Easy, Standard, Strategic or Mixed. A solo world has one human and fourteen robot cities. Mixed includes five Easy, five Standard and four Strategic bots, with builder, commander and merchant preferences.
+
+- **Easy:** one modest action, slow development and neutral expansion; offers the human an alliance.
+- **Standard:** combines legal actions, recruits and attacks vulnerable neighbouring regions.
+- **Strategic:** adds research, border defence, food reserves and goal-aware resource use. These are rule-based opponents, not an unbeatable solver.
+- All robots start with the same land/resources, obey the same spending and action limits, use discovered terrain and cannot inspect pending plans. They can win using the player's victory targets. Class games retain their deliberately weak bots.
+
+Solo is **untimed**. **Save my secret plan** saves for later. **Save & resolve round** saves the currently listed actions and resolves all robot plans together. An empty plan is Hold. Read the shared round report and standings, then press **Begin next round**. Rounds 1–4 allow up to three actions; round 5 removes the overall cap. Per-region, research, convoy and budget limits still apply. **End solo game** keeps completed rounds and discards the unresolved plan; **New solo game** lets students choose another difficulty.
+
+Progress resumes automatically in the same browser/device at the same round, including a saved plan. Unsaved edits are not restored. The separate `frontier-cities-solo-v1` storage key is not touched by the class's daily reset. A clear warning appears if storage is blocked or full; the current tab remains playable. Historical map snapshots are omitted from the device save to reduce storage use; all action/outcome reports remain. Download results as JSON, or print the final report. Starting another world replaces the saved solo game.
+
+The solo entry point loads only local game modules and assets: it does not contact the classroom service or use class/student/teacher credentials. Internet is required to load the hosted page; no server is required to resolve solo turns. The existing classroom page and teacher workflow are unchanged.
+
 ## Frontier Cities — a civilisation in one lesson
 
 **New worlds use the expanded rules.** Existing saved worlds keep their old map, timer and single-action rules. To use this edition, download any current results, then use **Reset Frontier Cities → Create world**. Other classroom modes are unaffected.

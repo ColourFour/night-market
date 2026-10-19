@@ -1,5 +1,5 @@
-import {tilePosition,HEX_DIRECTIONS} from './frontier-geography.js?v=world3';
-import {adjacent} from './frontier-core.js?v=world3';
+import {tilePosition,HEX_DIRECTIONS} from './frontier-geography.js?v=solo1';
+import {adjacent} from './frontier-core.js?v=solo1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const colors={capital:'#567d70',food:'#527d4d',ore:'#767c80',gold:'#a38a59'};
 let camera=null,cameraKey='',world=null;
