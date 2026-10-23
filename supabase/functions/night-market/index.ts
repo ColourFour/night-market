@@ -51,9 +51,9 @@ Deno.serve(async req=>{
         const days=await query('night_market_archives?select=saved_at,game&game->>archiveReason=eq.daily-reset&order=id.desc&limit=30');
         const reports=days.map(savedDayReport);return full.searchParams.get('type')==='csv'?reply(200,savedDaysCsv(reports),'text/csv'):reply(200,reports);
       }
-      const result=(/^\/api\/(pairs|zones|frontier)\//.test(url)?handleClassroom:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
+      const result=(/^\/api\/(pairs|zones|frontier|crypto)\//.test(url)?handleClassroom:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
       if(!result.changed){
-        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')&&!url.startsWith('/api/zones/')&&!url.startsWith('/api/frontier/')){
+        if(req.method==='GET'&&result.status===200&&url!=='/api/health'&&!url.startsWith('/api/export')&&!url.startsWith('/api/pairs/')&&!url.startsWith('/api/zones/')&&!url.startsWith('/api/frontier/')&&!url.startsWith('/api/crypto/')){
           const etag='"'+rows[0].version+'"';
           if(req.headers.get('if-none-match')?.replace(/^W\//,'')===etag)return new Response(null,{status:304,headers:{...cors,ETag:etag}});
           const response=reply(result.status,result.body,result.type);response.headers.set('ETag',etag);return response;

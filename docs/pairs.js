@@ -1,8 +1,9 @@
+import {cryptoView,cryptoPayload,cryptoInput} from './crypto-ui.js?v=cipher1';
 import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=solo1';
 import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=solo1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,resetDemo} from './pairs-transport.js?v=solo1';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,simulateCrypto,resetDemo} from './pairs-transport.js?v=cipher1';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -62,7 +63,7 @@ function student(){
  return title()+totalStrip()+`<section class="duel panel"><div class="duel-people"><div><small>You</small><h2>${esc(state.me.name)}</h2></div><span class="versus">${state.opponent?'vs':'—'}</span><div><small>${state.opponent?'Your opponent':'This round'}</small><h2>${state.opponent?esc(state.opponent.name):'You sit out'}</h2></div></div>${timer()}${!state.opponent?'<p>Follow the results. Your next opponent appears when the next round begins.</p>':state.myChoice?`<div class="locked-choice">Your choice is locked: <strong>${label(state.myChoice.choice)}</strong><p>Both choices reveal when time runs out.</p></div>`:state.status==='open'?choiceForm('choice','Lock my choice'):'<p>Wait for your teacher to resume the timer.</p>'}</section>${historyView}${matrix()}${leaveButton()}`;
 }
 function gameCards(){
- const games=[['pairs','01','Contribute / Take','Two people. Two choices.<br>Trust, incentives and shared consequences.','Enter the night market'],['zones','02','Economic Zones','One hundred advertisements. Five zones.<br>Compete for attention across a future city.','Enter the city'],['frontier','03','Frontier Cities','Build a civilisation. Forge an alliance.<br>Grow, trade or conquer a shared world.','Enter the frontier']];
+ const games=[['pairs','01','Contribute / Take','Two people. Two choices.<br>Trust, incentives and shared consequences.','Enter the night market'],['zones','02','Economic Zones','One hundred advertisements. Five zones.<br>Compete for attention across a future city.','Enter the city'],['frontier','03','Frontier Cities','Build a civilisation. Forge an alliance.<br>Grow, trade or conquer a shared world.','Enter the frontier'],['crypto','04','Cryptology','Write a rule. Hide a message.<br>Can your classmates break your code?','Launch Operation Cipher']];
  return `<div class="game-cards">${games.map(([mode,n,title,description,caption])=>`<button type="button" data-action="mode${mode[0].toUpperCase()+mode.slice(1)}" class="game-card game-${mode}"><span class="game-number">${n}</span><h2>${title}</h2><p>${description}</p><strong>${caption} →</strong></button>`).join('')}</div>`;
 }
 function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p>${gameCards()}<section class="panel solo-entry"><h2>Your own frontier</h2><p>Play a full game against 14 robots. Choose their ability and take as long as you need.</p>${soloLink()}</section>${role==='student'?leaveButton():`<section class="panel"><h2>A fresh class each day</h2><p>Students add their own names. At midnight China time, names, scores and games reset. Previous results are saved before the next class opens.</p><div class="actions">${button('savedCsv','Past class results · CSV',true)}${button('savedJson','Past class results · full JSON',true)}</div><small>The most recent 30 saved days are available here.</small></section>`}</section>`;}
@@ -71,11 +72,11 @@ function render(){
  const focused=document.activeElement,focusName=focused?.name,focusForm=focused?.form?.id,focusPosition=focused?.selectionStart;
  const forms=new Map();document.querySelectorAll('form').forEach(f=>{if(f.id==='frontier-order')return;forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
  const opened=[...document.querySelectorAll('details[open][data-key]')].map(e=>e.dataset.key);
- $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='frontier'?soloLink()+tutorialView(state,role,token)+(tutorialActive()?'':frontierView(state,role))+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
+ $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='crypto'?cryptoView(state,role)+(role==='student'?leaveButton():''):selectedMode==='frontier'?soloLink()+tutorialView(state,role,token)+(tutorialActive()?'':frontierView(state,role))+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
  for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
  $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${selectedMode==='frontier'&&tutorialActive()?'':button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
- updateClock();updateZonesTotals();zonesAfterRender();
+ updateClock();updateZonesTotals();zonesAfterRender();if(selectedMode==='crypto')cryptoInput(state);
  if(focusName&&focusForm){const form=[...document.querySelectorAll('form')].find(f=>f.id===focusForm),el=form&&[...form.elements].find(e=>e.name===focusName);if(el){el.focus?.({preventScroll:true});if(el.type==='text'||el.tagName==='TEXTAREA')try{el.setSelectionRange(focusPosition,focusPosition);}catch{}}}
 }
 function updateClock(){
@@ -102,7 +103,7 @@ async function refresh(force=false){
  }
 
  refreshing=true;
- try{const started=Date.now(),next=await api((selectedMode==='frontier'?'frontier/':selectedMode==='zones'?'zones/':'')+(role==='teacher'?'teacher':'state'),undefined,token);if(revision!==generation)return;if(next.serverNow)clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
+ try{const started=Date.now(),next=await api((selectedMode==='crypto'?'crypto/':selectedMode==='frontier'?'frontier/':selectedMode==='zones'?'zones/':'')+(role==='teacher'?'teacher':'state'),undefined,token);if(revision!==generation)return;if(next.serverNow)clockOffset=next.serverNow+(Date.now()-started)/2-Date.now();
  const compare=JSON.stringify({...next,serverNow:0});if(force||compare!==lastView){if(state&&(state.roundId!==next.roundId||state.id!==next.id))$('#app').innerHTML='';state=next;lastView=compare;render();}else state=next;
  $('#connection').textContent=demo?'● Rehearsal':'● Connected';
  }catch(e){$('#connection').textContent='Reconnecting…';if(role==='student'&&[401,404].includes(e.status)){session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;notice('Please choose your name again.');}else if(force)notice(e.message);}finally{if(revision===generation)refreshing=false;}
@@ -111,7 +112,8 @@ function download(name,value,type='application/json'){const a=document.createEle
 document.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;const f=e.target,id=f.getAttribute('id'),b=Object.fromEntries(new FormData(f));
  try{
-  if(id.startsWith('frontier-')){const request=frontierPayload(id,b);if(request){await api('frontier/'+request.path,{...request.body,id:state.id,roundId:state.roundId},token);await refresh(true);}}
+  if(id.startsWith('crypto-')){const request=cryptoPayload(id,b);if(request){await api('crypto/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
+  else if(id.startsWith('frontier-')){const request=frontierPayload(id,b);if(request){await api('frontier/'+request.path,{...request.body,id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(id==='zones-inspect'){zonesLocal('zone-inspect',{id:b.student},state);render();}
   else if(id.startsWith('zones-')){const request=zonesPayload(id,b);if(request){await api('zones/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
   else if(id==='join-form'){const joined=await api('join',{name:b.name});token=joined.token;selectedMode='menu';session.setItem('pairs-student',token);device.setItem('pairs-student',token);await refresh(true);}
@@ -126,13 +128,19 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
-  if(['modePairs','modeZones','modeFrontier','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
+  if(['modePairs','modeZones','modeFrontier','modeCrypto','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':action==='modeCrypto'?'crypto':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
+  else if(action.startsWith('crypto-')){
+   const kind=action.slice(7);
+   if(['csv','json'].includes(kind))download('Cryptology-results.'+kind,await api('crypto/export?type='+kind,undefined,token),kind==='csv'?'text/csv':'application/json');
+   else if(kind==='pass'){await api('crypto/admin/decode',{id:state.id,targetId:Number(b.dataset.id),passed:true},token);const input=document.querySelector('#crypto-decode-'+b.dataset.id+' [name=guess]');if(input)input.value='';await refresh(true);}
+   else{await api('crypto/admin/'+kind,{id:state.id,...(kind==='reveal'?{entryIds:state.entries.map(e=>e.studentId)}:{})},token);await refresh(true);}
+  }
   else if(tutorialAction(action,b.dataset,state,role,token)){render();if(action==='frontier-tutorial-skip')await refresh(true);}
   else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json','frontier-roundsCsv'].includes(action)){const type=action.slice(9);download('Frontier-Cities'+(type==='roundsCsv'?'-actions.csv':'.'+type),await api('frontier/export?type='+type,undefined,token),type==='csv'||type==='roundsCsv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(action.startsWith('zone-')){if(zonesLocal(action,b.dataset,state))render();else if(action==='zone-print')window.print();else if(['zone-csv','zone-json'].includes(action)){const type=action.slice(5);download('Economic-Zones-results.'+type,await api('zones/export?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}else{await api('zones/admin/'+action.slice(5),{id:state.id},token);await refresh(true);}}
   else if(action==='showReset'||action==='cancelReset'){resetVisible=action==='showReset';render();}
   else if(action==='demoTeacher'||action==='demoStudent'){role=action==='demoTeacher'?'teacher':'student';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
-  else if(action==='simulate'){await (selectedMode==='frontier'?simulateFrontier():selectedMode==='zones'?simulateZones():simulate());await refresh(true);}
+  else if(action==='simulate'){await (selectedMode==='crypto'?simulateCrypto():selectedMode==='frontier'?simulateFrontier():selectedMode==='zones'?simulateZones():simulate());await refresh(true);}
   else if(action==='demoReset'){resetDemo();role='teacher';token=demoToken(role);state=null;lastView='';$('#app').innerHTML='';await refresh(true);}
   else if(action==='logout'){await api('leave',{},token);session.removeItem('pairs-student');device.removeItem('pairs-student');token='';selectedMode='menu';state=null;lastView='';lastLobbyPoll=0;roster=[];await refresh(true);}
   else if(['savedCsv','savedJson'].includes(action)){const type=action==='savedCsv'?'csv':'json';download('Strategy-Lab-saved-days.'+type,await api('archives?type='+type,undefined,token),type==='csv'?'text/csv':'application/json');}
@@ -140,7 +148,7 @@ document.addEventListener('click',async e=>{
   else{await api('admin/'+action,{roundId:b.dataset.round||state.roundId,id:Number(b.dataset.id)},token);await refresh(true);}
  }catch(err){notice(err.message);}finally{busy=false;updateClock();}
 });
-document.addEventListener('input',()=>{if(selectedMode==='zones')updateZonesTotals();if(selectedMode==='frontier')frontierInput();});
+document.addEventListener('input',()=>{if(selectedMode==='crypto')cryptoInput(state);if(selectedMode==='zones')updateZonesTotals();if(selectedMode==='frontier')frontierInput();});
 document.addEventListener('change',e=>{if(selectedMode==='frontier'&&e.target.closest?.('#frontier-order')){frontierInput();render();}});
 document.addEventListener('keydown',e=>{const tile=e.target.closest?.('[data-action=frontier-tile]');if(tile&&['Enter',' '].includes(e.key)){e.preventDefault();tile.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh(true);});
