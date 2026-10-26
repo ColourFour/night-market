@@ -21,3 +21,13 @@ test('Revealed UI displays teacher success, peer successes, rules and actual pla
  const h=cryptoView(s,'student');assert.match(h,/Teacher decoded it/);assert.match(h,/1 classmate decoded it/);assert.match(h,/Truth &lt;script&gt;/);assert.match(h,/Reverse &lt;script&gt;/);assert.match(h,/✓ Match/);assert.match(h,/× No match/);assert.doesNotMatch(h,/<script>|crypto-guess-|crypto-submit/);
  assert.deepEqual(cryptoPayload('crypto-decode-2',{targetId:'2',guess:'Hi'}),{path:'admin/decode',body:{targetId:2,guess:'Hi',passed:false}});
 });
+test('Every cipher view preserves explicit rows and indentation, including a first blank line',()=>{
+ const raw='\n  A  B\n  C  D\n  E  F\n  G  H\n  I  J  \n',entry={studentId:0,name:'Agent',rule:'Read down.',ciphertext:raw,plaintext:'SECRET'};
+ const student={id:'layout',status:'open',submitted:2,total:2,me:{id:1,name:'Other',entry:{...entry,studentId:1}},messages:[{...entry,myGuess:null}]};
+ const markup='<pre class="cr-ciphertext"><span>'+raw+'</span></pre>';
+ assert.ok(cryptoView(student,'student').includes(markup));
+ assert.ok(cryptoView({...student,reviewed:0,guessCount:0,seats:[],entries:[{...entry,attempt:null}]},'teacher').includes(markup));
+ assert.ok(cryptoView({...student,status:'revealed',results:[{...entry,teacher:{guess:'SECRET',correct:true},decodedByPeers:0,peers:[]}]},'student').includes(markup));
+ const compose=cryptoView({...student,me:{...student.me,entry:null}},'student');assert.match(compose,/name="ciphertext" wrap="off" rows="5"/);
+ assert.match(compose,/Line breaks and spaces are kept exactly/);
+});

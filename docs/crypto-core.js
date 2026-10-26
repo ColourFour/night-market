@@ -3,7 +3,7 @@ import {pairSecret} from './pairs-core.js';
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status});};
 export const normalizePlaintext=value=>String(value??'').normalize('NFKC').toLowerCase().replace(/[\p{P}\p{Z}\s]/gu,'');
 export const plaintextMatches=(guess,answer)=>!!normalizePlaintext(guess)&&normalizePlaintext(guess)===normalizePlaintext(answer);
-const field=(value,label,max)=>{if(typeof value!=='string'||!value.trim()||value.length>max)fail(`${label} must contain 1–${max} characters.`);return value.trim();};
+const field=(value,label,max,preserveLayout=false)=>{if(typeof value!=='string'||!value.trim()||value.length>max)fail(`${label} must contain 1–${max} characters.`);return preserveLayout?value:value.trim();};
 const records=g=>Object.values(g.entries).sort((a,b)=>a.studentId-b.studentId);
 const snapshot=(entry,g)=>({studentId:entry.studentId,name:entry.name,ciphertext:entry.ciphertext,submittedAt:entry.submittedAt});
 export function cryptoResults(g){
@@ -15,7 +15,7 @@ export function cryptoResults(g){
 export function cryptoCsv(results){
  const rows=[['author','ciphertext','rule','actual_plaintext','decoder','guess','correct','passed']];
  for(const e of results){rows.push([e.name,e.ciphertext,e.rule,e.plaintext,'Teacher',e.teacher.guess,e.teacher.correct,e.teacher.passed]);for(const p of e.peers)rows.push([e.name,e.ciphertext,e.rule,e.plaintext,p.name,p.guess,p.correct,false]);}
- const safe=v=>{let s=String(v);if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+ const safe=v=>{let s=String(v);if(/^(?:\s*[=+@-]|[\t\r])/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
  return '\ufeff'+rows.map(row=>row.map(safe).join(',')).join('\r\n');
 }
 export function handleCrypto(input,req,{now=Date.now()}={}){
@@ -51,7 +51,7 @@ export function handleCrypto(input,req,{now=Date.now()}={}){
   if(route==='POST /api/crypto/submit'){
    const p=student(),g=game();guard(g);if(g.status!=='open')fail('Message submission is closed for this mission.',409);
    if(owner(g,p))fail('Your message is already sealed. You can now decode your classmates’ messages.',409);
-   const rule=field(b.rule,'Your rule',2000),ciphertext=field(b.ciphertext,'Your encoded message',1200),plaintext=field(b.plaintext,'The true message',1200);
+   const rule=field(b.rule,'Your rule',2000),ciphertext=field(b.ciphertext,'Your encoded message',1200,true),plaintext=field(b.plaintext,'The true message',1200);
    if(!normalizePlaintext(plaintext))fail('The true message must contain more than spaces or punctuation.');
    g.entries[p.id]={studentId:p.id,name:p.name,rule,ciphertext,plaintext,submittedAt:now};changed=true;return response({ok:true});
   }

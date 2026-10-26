@@ -9,7 +9,7 @@ test('Cryptology rehearsal connects student submissions, peer guesses, teacher r
  const interval=globalThis.setInterval,Form=globalThis.FormData;globalThis.setInterval=()=>0;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=cipher1');
+  const transport=await import('../docs/pairs-transport.js?v=layout1');
   const teacher=()=>transport.api('crypto/teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async(action,extra={})=>listeners.get('click')({target:{closest:()=>({dataset:{action,...extra}})}});

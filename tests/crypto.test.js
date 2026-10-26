@@ -83,4 +83,16 @@ test('Concurrent submissions and guesses survive compare-and-swap retries',async
 test('CSV export protects formula cells and contains no session credentials',()=>{
  const a=app();a.send(0,{ciphertext:'=1+1',rule:'@code',plaintext:'Message'});a.post('admin/decode',{targetId:0,guess:'Message'});a.post('admin/reveal',{entryIds:[0]});
  const csv=cryptoCsv(cryptoResults(a.get().crypto));assert.match(csv,/'=1\+1/);assert.match(csv,/'@code/);assert.doesNotMatch(csv,new RegExp(a.get().teacherKey));
+ const padded=cryptoCsv([{...cryptoResults(a.get().crypto)[0],ciphertext:'  =1+1'}]);assert.match(padded,/"'  =1\+1"/);
+});
+test('Cipher grids retain exact whitespace across submission, peer and teacher views, reveal and exports',()=>{
+ const a=app();const ciphertext='\n    A  B  C  D\tE  \n    F  G  H  I\tJ  \n    K  L  M  N\tO  \n    P  Q  R  S\tT  \n    U  V  W  X\tY  \n';
+ a.send(0,{ciphertext});a.send(1);
+ assert.equal(a.get().crypto.entries[0].ciphertext,ciphertext);
+ assert.equal(a.call('state',undefined,1).body.messages.find(e=>e.studentId===0).ciphertext,ciphertext);
+ assert.equal(a.call('teacher',undefined,'teacher').body.entries[0].ciphertext,ciphertext);
+ a.post('admin/decode',{targetId:0,guess:'ACTUAL SECRET 0'});a.post('admin/decode',{targetId:1,guess:'ACTUAL SECRET 1'});a.post('admin/reveal',{entryIds:[0,1]});
+ assert.equal(a.call('state',undefined,1).body.results[0].ciphertext,ciphertext);
+ assert.equal(a.call('export?type=json',undefined,'teacher').body.results[0].ciphertext,ciphertext);
+ assert.ok(a.call('export?type=csv',undefined,'teacher').body.includes(ciphertext));
 });

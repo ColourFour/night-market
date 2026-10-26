@@ -18,6 +18,8 @@ Students register by typing a name (1–60 characters); ordinary spelling, punct
 
 Open the existing private teacher link, choose **Cryptology**, then **Open Cryptology mission**. Students use their ordinary name entry and choose the same game. The green terminal, animated radar and classified dossiers are HTML/CSS; there are no external assets or trackers.
 
+**Cipher layout:** submission, intercepts, teacher files and revealed ciphertext preserve original line breaks, spaces and tabs in a consistent-width font. Cards use the full available width and grow to show all rows. Long lines scroll horizontally and never wrap into extra rows. The entry box also disables wrapping. New ciphertext is stored without trimming its leading or trailing whitespace.
+
 1. Each student writes a decoding **rule**, an **encoded message**, and its **actual plaintext**. **Seal & transmit** locks that dispatch and unlocks the board of everyone else's ciphertext. Students cannot view peer messages before submitting their own.
 2. Students save one plaintext guess per classmate, editable until the reveal. Peer rules, true messages, other guesses and correctness stay hidden on the server.
 3. Your teacher decoder desk puts the **rule first**, followed by the ciphertext. Save a plaintext attempt for every dispatch, or choose **Could not decode**. Even the teacher response does not contain the actual answer or a correctness verdict before reveal. You can optionally **Close message submissions** while students continue guessing.
