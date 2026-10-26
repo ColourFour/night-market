@@ -1,4 +1,4 @@
-// Shared daily classroom lifecycle. Server time, not device time, owns the calendar.
+// Assessment sessions persist until manually reset. Daily rollover is opt-in for future classroom use.
 import {handlePairs,freshPairs,normalizeName} from './pairs-core.js';
 import {handleZones} from './zones-core.js';
 import {handleFrontier} from './frontier-core.js';
@@ -8,7 +8,7 @@ export const classDate=now=>new Date(now+8*60*60*1000).toISOString().slice(0,10)
 export function handleClassroom(input,req,options={}){
  const now=options.now??Date.now(),day=classDate(now);
  let state=input,archive=null;
- if(input.classDay!==day){
+ if(!input.classDay||(options.dailyReset===true&&input.classDay!==day)){
   archive={...structuredClone(input),archiveReason:'daily-reset',classDay:input.classDay||'Before daily entry'};
   state={...structuredClone(input),classDay:day,pairs:freshPairs([],input.pairs?.settings),zones:null,frontier:null,crypto:null};
  }

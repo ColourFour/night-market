@@ -63,7 +63,7 @@ test('Plaintext normalization supports multilingual messages and deterministic g
 });
 test('Daily reset archives Cryptology, expires sessions, and saved-day reports omit credentials',()=>{
  const a=app();a.send(0);const before=structuredClone(a.get()),token=before.pairs.players[0].token;
- const r=handleClassroom(before,{url:'/api/crypto/state',method:'GET',headers:{authorization:'Bearer '+token}},{now:now+86400000});
+ const r=handleClassroom(before,{url:'/api/crypto/state',method:'GET',headers:{authorization:'Bearer '+token}},{now:now+86400000,dailyReset:true});
  assert.equal(r.status,401);assert.ok(r.changed);assert.equal(r.state.crypto,null);assert.deepEqual(r.archive.crypto,before.crypto);
  const report=savedDayReport({game:before,saved_at:'now'});assert.equal(report.cryptology.entries[0].plaintext,'ACTUAL SECRET 0');assert.doesNotMatch(JSON.stringify(report),new RegExp(before.teacherKey+'|'+token+'|123456'));
  const g=before.crypto;g.status='revealed';g.teacherAttempts[0]={guess:'ACTUAL SECRET 0',passed:false};

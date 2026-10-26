@@ -5,7 +5,7 @@ import {pairSecret} from '../docs/pairs-core.js';
 const start=Date.parse('2026-10-15T15:59:00Z');
 function app(input={teacherKey:pairSecret(),pairs:null}){
  let state=input,now=start;const archives=[];
- function call(path,body,token='',status=200){const r=handleClassroom(state,{url:'/api/'+path,method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}},{now});assert.equal(r.status,status,JSON.stringify(r.body));if(r.changed){state=r.state;if(r.archive)archives.push(r.archive);}return r;}
+ function call(path,body,token='',status=200){const r=handleClassroom(state,{url:'/api/'+path,method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}},{now,dailyReset:true});assert.equal(r.status,status,JSON.stringify(r.body));if(r.changed){state=r.state;if(r.archive)archives.push(r.archive);}return r;}
  return {call,get:()=>state,time:n=>now=n,archives,admin:(action,body={})=>call('pairs/admin/'+action,{roundId:state.pairs.roundId,...body},state.teacherKey),join:name=>call('pairs/join',{name}).body.token};
 }
 test('Open names work from an empty class; matching and session ownership are server-side',()=>{
@@ -52,7 +52,7 @@ test('Late arrivals preserve current opponents, reveal history, and join open Ec
 test('Simulated simultaneous registration retries preserve distinct seats and only one midnight archive',async()=>{
  let state={teacherKey:pairSecret()},version=0,archives=[];const now=start;
  async function join(name){for(let attempt=0;attempt<40;attempt++){
-  const expected=version,r=handleClassroom(state,{url:'/api/pairs/join',method:'POST',body:{name},headers:{}},{now});
+  const expected=version,r=handleClassroom(state,{url:'/api/pairs/join',method:'POST',body:{name},headers:{}},{now,dailyReset:true});
   await new Promise(resolve=>setTimeout(resolve,attempt%3));
   if(expected!==version)continue;
   if(r.changed){state=r.state;version++;if(r.archive)archives.push(r.archive);}
@@ -67,4 +67,26 @@ test('Saved results preserve scores but never include access credentials; CSV na
  const report=savedDayReport({saved_at:'2026-10-16',game:{classDay:'2026-10-15',teacherKey:'SECRET',pairs:{players:[{id:0,name:'=SUM(A1)',token:'SEAT',pin:'123456'},{id:1,name:'B'}],history:[{round:1,results:[{a:0,b:1,choiceA:'take',choiceB:'contribute',scoreA:6,scoreB:0}]}]},zones:{tournament:{rows:[{name:'B',total:5,wins:1,ties:0,losses:0}]}},frontier:null}});
  assert.doesNotMatch(JSON.stringify(report),/SECRET|SEAT|123456/);assert.equal(report.contributeTake.history[0].results[0].scoreA,6);
  const csv=savedDaysCsv([report]);assert.match(csv,/'=SUM\(A1\)/);assert.match(csv,/Economic Zones/);
+});
+test('Assessment sessions retain every mode, student tokens and pending Cryptology work across two weeks',()=>{
+ const a=app();a.call('pairs/lobby');const token=a.join('Ada'),other=a.join('Bo'),teacher=a.get().teacherKey;
+ a.call('zones/admin/open',{},teacher);a.call('frontier/admin/create',{players:[0,1],rounds:10,seconds:180},teacher);
+ a.call('crypto/admin/open',{},teacher);const id=a.get().crypto.id;
+ a.call('crypto/submit',{id,rule:'Reverse.',ciphertext:'OLLEH',plaintext:'HELLO'},token);
+ a.call('crypto/submit',{id,rule:'Reverse.',ciphertext:'DLROW',plaintext:'WORLD'},other);
+ a.call('crypto/guess',{id,targetId:1,guess:'WORLD'},token);
+ a.call('crypto/admin/decode',{id,targetId:0,guess:'HELLO'},teacher);
+ const before=structuredClone(a.get());let state=before;
+ for(const delta of [86400000,7*86400000,14*86400000]){
+  for(const [path,auth] of [['pairs/state',token],['crypto/state',token],['crypto/teacher',teacher]]){
+   const r=handleClassroom(state,{url:'/api/'+path,method:'GET',headers:{authorization:'Bearer '+auth}},{now:start+delta});
+   assert.equal(r.status,200,JSON.stringify(r.body));assert.equal(r.archive,null);if(r.changed)state=r.state;
+  }
+  assert.deepEqual(state.crypto,before.crypto);assert.deepEqual(state.zones,before.zones);assert.deepEqual(state.frontier,before.frontier);
+  assert.equal(state.pairs.players[0].token,token);assert.equal(state.classDay,before.classDay);
+ }
+ const r=handleClassroom(state,{url:'/api/crypto/guess',method:'POST',body:{id,targetId:1,guess:'WORLD!'},headers:{authorization:'Bearer '+token}},{now:start+14*86400000});
+ assert.equal(r.status,200);assert.equal(r.state.crypto.guesses['0:1'].guess,'WORLD!');assert.equal(r.archive,null);
+ const teacherView=handleClassroom(r.state,{url:'/api/crypto/teacher',method:'GET',headers:{authorization:'Bearer '+teacher}},{now:start+14*86400000});
+ assert.ok(teacherView.body.entries.every(e=>!('plaintext' in e)));assert.equal(teacherView.body.entries[0].attempt.guess,'HELLO');
 });
