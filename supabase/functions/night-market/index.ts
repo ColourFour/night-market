@@ -1,5 +1,6 @@
 import {handleClassroom,normalizeJoinName,savedDayReport,savedDaysCsv} from '../../../docs/classroom-core.js';
 import {handle} from '../../../docs/core.js';
+import {cryptoArchiveReport,cryptoCsv,cryptoSummaryCsv} from '../../../docs/crypto-core.js';
 const env=(name:string)=>Deno.env.get(name)||'';
 const site=env('NIGHT_MARKET_SITE_URL')||'https://colourfour.github.io/night-market/';
 const allowedOrigin=site?new URL(site).origin:'';
@@ -50,6 +51,23 @@ Deno.serve(async req=>{
         if(req.method!=='GET'||req.headers.get('authorization')!=='Bearer '+state.teacherKey)return reply(401,{error:'Teacher access required.'});
         const days=await query('night_market_archives?select=saved_at,game&game->>archiveReason=eq.daily-reset&order=id.desc&limit=30');
         const reports=days.map(savedDayReport);return full.searchParams.get('type')==='csv'?reply(200,savedDaysCsv(reports),'text/csv'):reply(200,reports);
+      }
+      if(full.pathname.slice(index)==='/api/crypto/archives'){
+        if(req.method!=='GET'||req.headers.get('authorization')!=='Bearer '+state.teacherKey)return reply(401,{error:'Teacher access required.'});
+        const archiveId=full.searchParams.get('archiveId');
+        if(archiveId!==null&&!/^[1-9][0-9]*$/.test(archiveId))return reply(400,{error:'Choose a valid sitting.'});
+        if(!archiveId){
+          // Listing never loads complete guesses/check histories or seat credentials.
+          const projection='id,saved_at,mission_id:game->crypto->>id,status:game->crypto->>status,opened_at:game->crypto->>openedAt,ended_at:game->crypto->>endedAt,revealed_at:game->crypto->>revealedAt,summary:game->crypto->finalSummary';
+          const raw=await query('night_market_archives?select='+projection+'&order=id.desc&limit=100'),seen=new Set();
+          return reply(200,{items:raw.filter((r:any)=>{if(!r.mission_id||seen.has(r.mission_id))return false;seen.add(r.mission_id);return true;}).map((r:any)=>({archiveId:r.id,missionId:r.mission_id,savedAt:r.saved_at,openedAt:Number(r.opened_at)||null,endedAt:Number(r.ended_at||r.revealed_at)||null,status:r.status==='revealed'?'finished':'archived_before_end',...(r.summary?{submitted:r.summary.submitted,teacherMatched:r.summary.teacherMatched,peerCorrect:r.summary.peerCorrect,peerGuesses:r.summary.peerGuesses}:{})}))});
+        }
+        const projection='id,saved_at,crypto:game->crypto,players:game->pairs->players,reason:game->>archiveReason';
+        const raw=await query('night_market_archives?select='+projection+'&id=eq.'+archiveId);
+        const rows=raw.map((r:any)=>({id:r.id,saved_at:r.saved_at,game:{crypto:r.crypto,pairs:{players:r.players||[]},archiveReason:r.reason}}));
+        const report=rows[0]&&cryptoArchiveReport(rows[0]);if(!report)return reply(404,{error:'This saved sitting was not found.'});
+        const type=full.searchParams.get('type');
+        return type==='csv'?reply(200,cryptoCsv(report.results),'text/csv'):type==='summary'?reply(200,cryptoSummaryCsv(report.summary),'text/csv'):reply(200,report);
       }
       const result=(/^\/api\/(pairs|zones|frontier|crypto)\//.test(url)?handleClassroom:handle)(state,{method:req.method,url,body,headers:{authorization:req.headers.get('authorization')||''}},{siteUrl:site});
       if(!result.changed){

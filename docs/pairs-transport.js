@@ -1,14 +1,23 @@
 import {handleFrontier,adjacent} from './frontier-core.js?v=solo1';
 import {handleZones} from './zones-core.js?v=open-entry1';
 import {handlePairs,pairSecret} from './pairs-core.js?v=open-entry1';
-import {handleCrypto} from './crypto-core.js?v=hints1';
+import {handleCrypto,cryptoArchiveReport,cryptoArchiveList,cryptoCsv,cryptoSummaryCsv} from './crypto-core.js?v=finals1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';
 let state;export let saved=true;
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));saved=true;}catch{saved=false;}}
 function apiPath(path){return path.startsWith('crypto/')?'/api/crypto/'+path.slice(7):path.startsWith('frontier/')?'/api/frontier/'+path.slice(9):path.startsWith('zones/')?'/api/zones/'+path.slice(6):'/api/pairs/'+path;}
-function request(path,body,token){if(path.startsWith('archives')){if(token!==get().teacherKey)throw Error('Teacher access required.');return {body:path.includes('csv')?'day,game,student,points':[]};}const r=(path.startsWith('crypto/')?handleCrypto:path.startsWith('frontier/')?handleFrontier:path.startsWith('zones/')?handleZones:handlePairs)(get(),{url:apiPath(path),method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;persist();}if(r.status>=400)throw Object.assign(Error(r.body.error),{status:r.status});return r;}
+function request(path,body,token){
+ if(path.split('?')[0]==='crypto/archives'){
+  if(token!==get().teacherKey)throw Object.assign(Error('Teacher access required.'),{status:401});
+  const url=new URL(path,'https://rehearsal.invalid/'),id=url.searchParams.get('archiveId'),rows=[...(get().cryptoArchives||[])].reverse();
+  if(!id)return {body:cryptoArchiveList(rows)};
+  if(!/^[1-9][0-9]*$/.test(id))throw Object.assign(Error('Choose a valid sitting.'),{status:400});
+  const report=cryptoArchiveReport(rows.find(r=>r.id===Number(id))||{});if(!report)throw Object.assign(Error('This saved sitting was not found.'),{status:404});
+  const type=url.searchParams.get('type');return {body:type==='csv'?cryptoCsv(report.results):type==='summary'?cryptoSummaryCsv(report.summary):report};
+ }
+ if(path.startsWith('archives')){if(token!==get().teacherKey)throw Error('Teacher access required.');return {body:path.includes('csv')?'day,game,student,points':[]};}const r=(path.startsWith('crypto/')?handleCrypto:path.startsWith('frontier/')?handleFrontier:path.startsWith('zones/')?handleZones:handlePairs)(get(),{url:apiPath(path),method:body===undefined?'GET':'POST',body,headers:{authorization:'Bearer '+token}});if(r.changed){state=r.state;if(r.archive?.crypto){state.cryptoArchives??=[];state.cryptoArchives.push({id:state.cryptoArchives.length+1,saved_at:new Date().toISOString(),game:{archiveReason:r.archive.archiveReason,crypto:r.archive.crypto,pairs:{players:(r.archive.pairs?.players||[]).map(p=>({id:p.id,name:p.name}))}}});}persist();}if(r.status>=400)throw Object.assign(Error(r.body.error),{status:r.status});return r;}
 function get(){if(!state){try{state=JSON.parse(localStorage.getItem(KEY));}catch{}if(!state?.pairs)resetDemo();}return state;}
 export function resetDemo(){
  state={schema:1,teacherKey:pairSecret(),room:null,pairs:null};

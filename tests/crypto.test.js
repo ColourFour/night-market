@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {handleCrypto,plaintextMatches,cryptoResults,cryptoCsv,softFeedback} from '../docs/crypto-core.js';
+import {handleCrypto,plaintextMatches,cryptoResults,cryptoCsv,softFeedback,cryptoSummary,cryptoSummaryCsv,cryptoArchiveReport,cryptoArchiveList} from '../docs/crypto-core.js';
 import {handleClassroom,classDate,savedDayReport,savedDaysCsv} from '../docs/classroom-core.js';
 import {pairSecret} from '../docs/pairs-core.js';
 const now=Date.parse('2026-10-23T03:00:00Z');
@@ -164,4 +164,47 @@ test('Concurrent unique check requests cannot exceed either server-side allowanc
  }throw Error('Commit retries exhausted');}
  const responses=await Promise.all([check('soft','one'),check('soft','two'),check('soft','three'),check('definitive','four'),check('definitive','five')]);
  assert.equal(responses.filter(r=>r.status===200).length,3);assert.equal(state.crypto.checks['0:1'].filter(c=>c.kind==='soft').length,2);assert.equal(state.crypto.checks['0:1'].filter(c=>c.kind==='definitive').length,1);
+});
+test('End assessment publishes final results, labels missing reviews, and atomically saves a complete sitting',()=>{
+ const a=app(4);a.send(0);a.send(1);a.send(2);a.post('guess',{targetId:1,guess:'ACTUAL SECRET 1'},0);a.post('guess',{targetId:1,guess:'Wrong'},2);
+ a.post('admin/decode',{targetId:0,guess:'ACTUAL SECRET 0'});a.post('admin/decode',{targetId:1,guess:'Wrong'});
+ a.post('admin/end',{entryIds:[0,1]},'teacher',409);a.post('admin/end',{entryIds:[0,1,2]},0,401);
+ const ended=a.post('admin/end',{entryIds:[0,1,2]});assert.equal(ended.archive.archiveReason,'cryptology-ended');assert.equal(ended.state.crypto.status,'revealed');assert.deepEqual(ended.archive.crypto,ended.state.crypto);
+ const teacher=a.call('teacher').body,student=a.call('state',undefined,0).body,missing=a.call('state',undefined,3).body;
+ assert.deepEqual(student.summary,teacher.summary);assert.equal(missing.summary.students[3].submitted,false);assert.equal(teacher.summary.teacherMatched,1);assert.equal(teacher.summary.teacherReviewed,2);assert.equal(teacher.summary.peerCorrect,1);assert.equal(teacher.summary.peerGuesses,2);
+ assert.equal(teacher.summary.students[2].teacherStatus,'not_reviewed');assert.equal(teacher.results[2].teacher.reviewed,false);assert.equal(teacher.summary.students[3].teacherStatus,'not_submitted');assert.equal(student.summary.students[0].othersSolved,1);
+ assert.match(a.call('export?type=summary').body,/not_reviewed/);assert.equal(a.call('export?type=json').body.summary.submitted,3);
+ for(const path of ['submit','guess','check','hint'])a.post(path,{targetId:1,guess:'x',kind:'soft'},0,409);
+ const second=a.post('admin/end',{entryIds:[0,1,2]});assert.equal(second.changed,false);assert.equal(second.archive,null);assert.equal(a.get().crypto.endedAt,now);
+});
+test('An empty assessment can end; saved results survive reset and archives never include session credentials',()=>{
+ const a=app(2),empty=a.post('admin/end',{entryIds:[]});assert.equal(empty.archive.crypto.status,'revealed');assert.equal(a.call('teacher').body.summary.submitted,0);
+ assert.equal(a.call('state',undefined,0).body.summary.students.length,2);
+ a.post('admin/reset',{confirm:'RESET'});a.send(0);a.post('admin/end',{entryIds:[0]});
+ const snapshot={id:2,saved_at:'2026-10-27T02:00:00Z',game:structuredClone(a.get())};snapshot.game.archiveReason='cryptology-ended';
+ a.post('admin/reset',{confirm:'RESET'});assert.equal(Object.keys(a.get().crypto.entries).length,0);
+ const report=cryptoArchiveReport(snapshot);assert.equal(report.status,'finished');assert.equal(report.results.length,1);assert.equal(report.summary.students[0].teacherStatus,'not_reviewed');
+ assert.doesNotMatch(JSON.stringify(report),new RegExp(snapshot.game.teacherKey+'|'+snapshot.game.pairs.players[0].token+'|123456'));
+ const older={...snapshot,id:1,game:{...snapshot.game,crypto:{...snapshot.game.crypto,status:'open',revealedAt:null,endedAt:null}}};
+ const list=cryptoArchiveList([snapshot,older]);assert.equal(list.items.length,1);assert.equal(list.items[0].archiveId,2);assert.equal(cryptoArchiveReport(older).status,'archived_before_end');
+ assert.equal(cryptoArchiveReport({id:9,game:{crypto:null}}),null);assert.match(cryptoSummaryCsv(report.summary),/teacher_result/);
+});
+test('Summary counts latest saved guesses only, distinguishes untested ciphers and keeps assistance records',()=>{
+ const a=app(3);a.send(0);a.send(1);a.post('guess',{targetId:1,guess:'Wrong'},0);a.post('guess',{targetId:1,guess:'ACTUAL SECRET 1'},0);
+ a.post('admin/hint',{targetId:1,hint:'Clue'});a.post('hint',{targetId:1},0);a.post('check',{targetId:1,kind:'soft',guess:'ACTUAL SECRET 1'},0);
+ const s=cryptoSummary(a.get().crypto,a.get().pairs.players);assert.equal(s.peerGuesses,1);assert.equal(s.peerCorrect,1);assert.equal(s.students[0].othersSolved,1);assert.equal(s.students[0].hintsViewed,1);assert.equal(s.students[0].softChecks,1);assert.equal(s.students[0].peerGuessesReceived,0);assert.equal(s.students[2].submitted,false);
+});
+test('Concurrent end and guess commits create one final archive consistent with the final state',async()=>{
+ const a=app();a.send(0);a.send(1);let state=a.get(),version=0,archives=[];const id=state.crypto.id,teacher=state.teacherKey,student=state.pairs.players[0].token;
+ async function apply(path,body,token){for(let attempt=0;attempt<30;attempt++){
+  const expected=version,r=handleCrypto(state,{url:'/api/crypto/'+path,method:'POST',body:{id,...body},headers:{authorization:'Bearer '+token}},{now});await new Promise(resolve=>setTimeout(resolve,attempt%3));if(expected!==version)continue;if(r.changed){state=r.state;version++;if(r.archive)archives.push(r.archive);}return r;
+ }throw Error('Commit retries exhausted');}
+ await Promise.all([apply('admin/end',{entryIds:[0,1]},teacher),apply('admin/end',{entryIds:[0,1]},teacher),apply('guess',{targetId:1,guess:'ACTUAL SECRET 1'},student)]);
+ assert.equal(archives.length,1);assert.equal(state.crypto.status,'revealed');assert.deepEqual(archives[0].crypto,state.crypto);
+});
+test('Final summaries stay frozen when the shared class roster changes after End',()=>{
+ const a=app(2);a.send(0);a.post('admin/end',{entryIds:[0]});const before=structuredClone(a.call('teacher').body.summary);
+ a.get().pairs.players.push({id:2,name:'Late arrival',token:pairSecret()});
+ assert.deepEqual(a.call('teacher').body.summary,before);assert.equal(a.call('export?type=json').body.summary.registered,2);
+ const report=cryptoArchiveReport({id:1,saved_at:'2026-10-27T02:00:00Z',game:a.get()});assert.deepEqual(report.summary,before);
 });

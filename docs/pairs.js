@@ -1,9 +1,9 @@
-import {cryptoView,cryptoPayload,cryptoInput} from './crypto-ui.js?v=hints1';
+import {cryptoView,cryptoPayload,cryptoInput,setCryptoArchive} from './crypto-ui.js?v=finals1';
 import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=solo1';
 import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=solo1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,simulateCrypto,resetDemo} from './pairs-transport.js?v=hints1';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,simulateCrypto,resetDemo} from './pairs-transport.js?v=finals1';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -66,7 +66,7 @@ function gameCards(){
  const games=[['pairs','01','Contribute / Take','Two people. Two choices.<br>Trust, incentives and shared consequences.','Enter the night market'],['zones','02','Economic Zones','One hundred advertisements. Five zones.<br>Compete for attention across a future city.','Enter the city'],['frontier','03','Frontier Cities','Build a civilisation. Forge an alliance.<br>Grow, trade or conquer a shared world.','Enter the frontier'],['crypto','04','Cryptology','Write a rule. Hide a message.<br>Can your classmates break your code?','Launch Operation Cipher']];
  return `<div class="game-cards">${games.map(([mode,n,title,description,caption])=>`<button type="button" data-action="mode${mode[0].toUpperCase()+mode.slice(1)}" class="game-card game-${mode}"><span class="game-number">${n}</span><h2>${title}</h2><p>${description}</p><strong>${caption} →</strong></button>`).join('')}</div>`;
 }
-function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p>${gameCards()}<section class="panel solo-entry"><h2>Your own frontier</h2><p>Play a full game against 14 robots. Choose their ability and take as long as you need.</p>${soloLink()}</section>${role==='student'?leaveButton():`<section class="panel"><h2>Assessment stays open</h2><p>Automatic daily reset is off. Names, submissions and guesses stay saved across days, with no automatic end date. In Cryptology, declassify when everyone has finished guessing; start a new mission only when you are ready to replace it.</p><div class="actions">${button('savedCsv','Past class results · CSV',true)}${button('savedJson','Past class results · full JSON',true)}</div><small>The most recent 30 saved days are available here.</small></section>`}</section>`;}
+function gameMenu(){return `<section class="game-menu"><div class="eyebrow">${role==='teacher'?'Teacher dashboard':`Welcome, ${esc(state.me?.name||'strategist')}`}</div><h1>Choose your experiment.</h1><p>${role==='teacher'?'Open a mode to control submissions, reveal results and guide the discussion.':'Explore how your choices interact with everyone else’s.'}</p>${gameCards()}<section class="panel solo-entry"><h2>Your own frontier</h2><p>Play a full game against 14 robots. Choose their ability and take as long as you need.</p>${soloLink()}</section>${role==='student'?leaveButton():`<section class="panel"><h2>Assessment stays open</h2><p>Automatic daily reset is off. Names, submissions and guesses stay saved across days, with no automatic end date. In Cryptology, choose End assessment when everyone has finished. Final results are saved before you start a new mission.</p><div class="actions">${button('savedCsv','Past class results · CSV',true)}${button('savedJson','Past class results · full JSON',true)}</div><small>The most recent 30 saved days are available here.</small></section>`}</section>`;}
 
 function render(){
  const focused=document.activeElement,focusName=focused?.name,focusForm=focused?.form?.id,focusPosition=focused?.selectionStart;
@@ -128,13 +128,17 @@ document.addEventListener('submit',async e=>{
 document.addEventListener('click',async e=>{
  const b=e.target.closest('[data-action]');if(!b||busy)return;busy=true;const action=b.dataset.action;
  try{
-  if(['modePairs','modeZones','modeFrontier','modeCrypto','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':action==='modeCrypto'?'crypto':'menu';state=null;lastView='';clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
+  if(['modePairs','modeZones','modeFrontier','modeCrypto','chooseGame'].includes(action)){selectedMode=action==='modePairs'?'pairs':action==='modeZones'?'zones':action==='modeFrontier'?'frontier':action==='modeCrypto'?'crypto':'menu';state=null;lastView='';setCryptoArchive(null);clearZones();clearFrontier();$('#app').innerHTML='';await refresh(true);}
   else if(action.startsWith('crypto-')){
    const kind=action.slice(7);
-   if(['csv','json'].includes(kind))download('Cryptology-results.'+kind,await api('crypto/export?type='+kind,undefined,token),kind==='csv'?'text/csv':'application/json');
+   if(['csv','json','summary'].includes(kind)){const csv=kind!=='json',path=b.dataset.archiveId?'crypto/archives?archiveId='+Number(b.dataset.archiveId)+'&type='+kind:'crypto/export?type='+kind;download('Cryptology-'+(kind==='summary'?'summary.csv':'results.'+kind),await api(path,undefined,token),csv?'text/csv':'application/json');}
+   else if(kind==='archives'){setCryptoArchive(await api('crypto/archives',undefined,token));render();}
+   else if(kind==='archive'){setCryptoArchive(await api('crypto/archives?archiveId='+Number(b.dataset.id),undefined,token));render();}
+   else if(kind==='archiveBack'){setCryptoArchive(null);await refresh(true);}
+   else if(kind==='print')window.print();
    else if(kind==='hint'){await api('crypto/hint',{id:state.id,targetId:Number(b.dataset.id)},token);await refresh(true);}
    else if(kind==='pass'){await api('crypto/admin/decode',{id:state.id,targetId:Number(b.dataset.id),passed:true},token);const input=document.querySelector('#crypto-decode-'+b.dataset.id+' [name=guess]');if(input)input.value='';await refresh(true);}
-   else{await api('crypto/admin/'+kind,{id:state.id,...(kind==='reveal'?{entryIds:state.entries.map(e=>e.studentId)}:{})},token);await refresh(true);}
+   else{await api('crypto/admin/'+kind,{id:state.id,...(['reveal','end'].includes(kind)?{entryIds:state.entries.map(e=>e.studentId)}:{})},token);await refresh(true);}
   }
   else if(tutorialAction(action,b.dataset,state,role,token)){render();if(action==='frontier-tutorial-skip')await refresh(true);}
   else if(action.startsWith('frontier-')){if(frontierLocal(action,b.dataset))render();else if(['frontier-csv','frontier-json','frontier-roundsCsv'].includes(action)){const type=action.slice(9);download('Frontier-Cities'+(type==='roundsCsv'?'-actions.csv':'.'+type),await api('frontier/export?type='+type,undefined,token),type==='csv'||type==='roundsCsv'?'text/csv':'application/json');}else{await api('frontier/admin/'+action.slice(9),{id:state.id,roundId:state.roundId},token);await refresh(true);}}

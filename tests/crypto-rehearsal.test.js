@@ -9,7 +9,7 @@ test('Cryptology rehearsal connects student submissions, peer guesses, teacher r
  const interval=globalThis.setInterval,Form=globalThis.FormData;globalThis.setInterval=()=>0;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=hints1');
+  const transport=await import('../docs/pairs-transport.js?v=finals1');
   const teacher=()=>transport.api('crypto/teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async(action,extra={})=>listeners.get('click')({target:{closest:()=>({dataset:{action,...extra}})}});
@@ -29,8 +29,11 @@ test('Cryptology rehearsal connects student submissions, peer guesses, teacher r
   await click('demoTeacher');let s=await teacher();assert.equal(s.submitted,13);assert.ok(s.entries.every(e=>!('plaintext' in e)));assert.match(html(),/RULE \/ READ THIS FIRST/);
   await submit('crypto-decode-0',{targetId:'0',guess:'MEET AT NOON'});
   for(const e of s.entries.slice(1))await click('crypto-pass',{id:String(e.studentId)});
-  s=await teacher();assert.equal(s.reviewed,13);await click('crypto-lock');await click('crypto-reveal');assert.match(html(),/The truth is out/);assert.match(html(),/Teacher decoded it/);
+  s=await teacher();assert.equal(s.reviewed,13);await click('crypto-lock');await click('crypto-end');assert.match(html(),/The truth is out/);assert.match(html(),/Teacher decoded it/);
   await click('demoStudent');assert.match(html(),/THE ACTUAL MESSAGE/);assert.match(html(),/Reverse it/);assert.doesNotMatch(html(),/crypto-guess-|crypto-submit/);
+  await click('demoTeacher');await click('crypto-archives');assert.match(html(),/Past Cryptology sittings/);
+  await click('crypto-archive',{id:'1'});assert.match(html(),/Final results/);assert.match(html(),/Submission and decoding summary/);
+  await click('crypto-archiveBack');assert.equal((await teacher()).status,'revealed');
   await click('chooseGame');assert.match(html(),/Contribute \/ Take/);assert.match(html(),/Frontier Cities/);
  }finally{globalThis.setInterval=interval;globalThis.FormData=Form;}
 });

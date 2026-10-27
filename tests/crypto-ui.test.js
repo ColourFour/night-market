@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {cryptoView,cryptoPayload,cryptoInput} from '../docs/crypto-ui.js';
+import {cryptoView,cryptoPayload,cryptoInput,setCryptoArchive} from '../docs/crypto-ui.js';
 test('Student UI has exactly three fields, no generator, and no teacher controls',()=>{
  const s={id:'abcdef',status:'open',submitted:0,total:3,me:{id:0,name:'<img onerror=alert(1)>',entry:null},myGuessCount:0};const h=cryptoView(s,'student');
  assert.match(h,/OPERATION/);assert.match(h,/name="rule"/);assert.match(h,/name="ciphertext"/);assert.match(h,/name="plaintext"/);assert.match(h,/Seal &amp; transmit|Seal & transmit/);
@@ -8,9 +8,9 @@ test('Student UI has exactly three fields, no generator, and no teacher controls
  const ready=cryptoView({...s,me:{...s.me,entry:{rule:'RULE',ciphertext:'CODE',plaintext:'OWN'}},messages:[{studentId:1,name:'Other',ciphertext:'SECRET CODE',myGuess:null}]},'student');
  assert.match(ready,/crypto-guess-1/);assert.match(ready,/SECRET CODE/);assert.match(ready,/without the rule/);assert.doesNotMatch(ready,/crypto-submit|crypto-decode|data-action="crypto-reveal"/);
 });
-test('Teacher sees the rule before ciphertext and cannot declassify incomplete or dirty work',()=>{
+test('Teacher sees the rule before ciphertext and can end with unreviewed files but cannot end with unsaved attempts',()=>{
  const s={id:'abcdef',status:'open',submitted:1,total:1,reviewed:0,guessCount:0,seats:[],entries:[{studentId:0,name:'Agent',rule:'RULE FIRST',ciphertext:'CODE SECOND',attempt:null}]};let h=cryptoView(s,'teacher');
- assert.ok(h.indexOf('RULE FIRST')<h.indexOf('CODE SECOND'));assert.match(h,/Could not decode/);assert.match(h,/id="crypto-reveal"/);assert.match(h,/disabled/);assert.doesNotMatch(h,/name="plaintext"/);
+ assert.ok(h.indexOf('RULE FIRST')<h.indexOf('CODE SECOND'));assert.match(h,/Could not decode/);assert.match(h,/id="crypto-end"/);assert.match(h,/End assessment/);assert.doesNotMatch(h,/name="plaintext"/);
  s.reviewed=1;s.entries[0].attempt={guess:'Saved',passed:false};h=cryptoView(s,'teacher');assert.match(h,/data-saved="Saved"/);
  const reveal={disabled:false},status={textContent:''},input={value:'Different',dataset:{saved:'Saved'}};
  const doc={querySelectorAll:()=>[{querySelector:q=>q==='[name=guess]'?input:status}],querySelector:()=>reveal};cryptoInput(s,doc);assert.equal(reveal.disabled,true);assert.match(status.textContent,/Unsaved/);
@@ -39,4 +39,12 @@ test('Hint/check UI exposes teacher publishing and student allowances, with esca
  assert.deepEqual(cryptoPayload('crypto-hint-1',{targetId:'1',hint:'Clue'}),{path:'admin/hint',body:{targetId:1,hint:'Clue'}});
  const teacher=cryptoView({id:'abcdef',status:'open',submitted:1,total:1,reviewed:0,guessCount:0,seats:[],hintRequestCount:1,checkCount:1,entries:[{studentId:1,name:'Other',rule:'RULE',ciphertext:'CODE',hint:'Teacher clue',hintRequests:1,attempt:null}]},'teacher');
  assert.match(teacher,/crypto-hint-1/);assert.match(teacher,/1 REQUEST/);assert.match(teacher,/Update published hint/);
+});
+test('Final pages show class and personal records, missing work and archive provenance without controls for students',()=>{
+ const summary={submitted:1,registered:2,teacherMatched:0,teacherReviewed:0,peerGuesses:0,peerCorrect:0,students:[{studentId:0,name:'A <img>',submitted:true,teacherStatus:'not_reviewed',peersDecodedMessage:0,peerGuessesReceived:0,othersSolved:0,othersAttempted:0,hintsViewed:0,softChecks:0,definitiveChecks:0},{studentId:1,name:'Missing',submitted:false,teacherStatus:'not_submitted',peersDecodedMessage:0,peerGuessesReceived:0,othersSolved:0,othersAttempted:0,hintsViewed:0,softChecks:0,definitiveChecks:0}]};
+ const s={id:'final',status:'revealed',submitted:1,endedAt:1793059200000,me:{id:0,name:'A'},summary,results:[{studentId:0,name:'A <img>',plaintext:'TRUE',ciphertext:'CODE',rule:'RULE',teacher:{reviewed:false,correct:false,passed:false,guess:''},peers:[],decodedByPeers:0}]};
+ const h=cryptoView(s,'student');assert.match(h,/Final results/);assert.match(h,/YOUR FINAL RECORD/);assert.match(h,/Not tested/);assert.match(h,/Not submitted/);assert.match(h,/Not reviewed/);assert.match(h,/No attempt saved/);assert.match(h,/Print \/ save results/);assert.doesNotMatch(h,/<img>|crypto-end|crypto-archives|crypto-guess-/);
+ setCryptoArchive({items:[{archiveId:4,missionId:'past',savedAt:'2026-10-27T01:00:00Z',status:'archived_before_end',submitted:1,teacherMatched:0,peerCorrect:0,peerGuesses:0}]});assert.match(cryptoView(s,'teacher'),/Past Cryptology sittings/);assert.match(cryptoView(s,'teacher'),/ARCHIVED BEFORE END/);
+ setCryptoArchive({archiveId:4,missionId:'past',savedAt:'2026-10-27T01:00:00Z',status:'archived_before_end',summary,results:s.results});assert.match(cryptoView(s,'teacher'),/does not publish its answers/);assert.match(cryptoView(s,'teacher'),/data-archive-id="4"/);
+ setCryptoArchive(null);
 });

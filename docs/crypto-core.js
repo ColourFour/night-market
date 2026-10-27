@@ -20,8 +20,33 @@ const snapshot=(entry,g)=>({studentId:entry.studentId,name:entry.name,ciphertext
 export function cryptoResults(g){
  return records(g).map(e=>{
   const teacher=g.teacherAttempts[e.studentId],peers=Object.values(g.guesses).filter(a=>a.targetId===e.studentId).sort((a,b)=>a.studentId-b.studentId).map(a=>{const key=`${a.studentId}:${e.studentId}`,history=checkHistory(g,key);return {...a,correct:plaintextMatches(a.guess,e.plaintext),hintRequested:!!g.hintRequests?.[key],hintUsed:!!g.hintRequests?.[key]?.viewedAt,checksUsed:history.length,checks:history.map(c=>({...c,correct:plaintextMatches(c.guess,e.plaintext)}))};});
-  return {...snapshot(e,g),rule:e.rule,plaintext:e.plaintext,hint:g.hints?.[e.studentId]?.text||null,hintRequests:Object.values(g.hintRequests||{}).filter(r=>r.targetId===e.studentId).map(r=>({...r})),teacher:{guess:teacher?.guess||'',passed:!!teacher?.passed,correct:!teacher?.passed&&!!teacher&&plaintextMatches(teacher.guess,e.plaintext)},peers,decodedByPeers:peers.filter(a=>a.correct).length};
+  return {...snapshot(e,g),rule:e.rule,plaintext:e.plaintext,hint:g.hints?.[e.studentId]?.text||null,hintRequests:Object.values(g.hintRequests||{}).filter(r=>r.targetId===e.studentId).map(r=>({...r})),teacher:{reviewed:!!teacher,guess:teacher?.guess||'',passed:!!teacher?.passed,correct:!teacher?.passed&&!!teacher&&plaintextMatches(teacher.guess,e.plaintext)},peers,decodedByPeers:peers.filter(a=>a.correct).length};
  });
+}
+export function cryptoSummary(g,players=[]){
+ const results=cryptoResults(g),people=new Map(players.map(p=>[p.id,{studentId:p.id,name:p.name}]));
+ for(const e of records(g))people.set(e.studentId,{studentId:e.studentId,name:e.name});
+ for(const guess of Object.values(g.guesses))if(!people.has(guess.studentId))people.set(guess.studentId,{studentId:guess.studentId,name:guess.name});
+ const rows=[...people.values()].sort((a,b)=>a.studentId-b.studentId).map(p=>{
+  const entry=results.find(e=>e.studentId===p.studentId),attempts=results.flatMap(e=>e.peers.filter(a=>a.studentId===p.studentId)),checks=Object.entries(g.checks||{}).filter(([key])=>key.startsWith(p.studentId+':')).flatMap(([,list])=>list),requests=Object.values(g.hintRequests||{}).filter(r=>r.studentId===p.studentId);
+  return {...p,submitted:!!entry,teacherStatus:!entry?'not_submitted':!entry.teacher.reviewed?'not_reviewed':entry.teacher.passed?'passed':entry.teacher.correct?'matched':'not_matched',peerGuessesReceived:entry?.peers.length||0,peersDecodedMessage:entry?.decodedByPeers||0,othersAttempted:attempts.length,othersSolved:attempts.filter(a=>a.correct).length,hintsRequested:requests.length,hintsViewed:requests.filter(r=>r.viewedAt).length,softChecks:checks.filter(c=>c.kind==='soft').length,definitiveChecks:checks.filter(c=>c.kind==='definitive').length};
+ });
+ return {students:rows,registered:rows.length,submitted:results.length,teacherReviewed:results.filter(e=>e.teacher.reviewed).length,teacherMatched:results.filter(e=>e.teacher.correct).length,peerGuesses:results.reduce((n,e)=>n+e.peers.length,0),peerCorrect:results.reduce((n,e)=>n+e.decodedByPeers,0)};
+}
+export function cryptoSummaryCsv(summary){
+ const rows=[['student','cipher_submitted','teacher_result','classmates_correct','classmate_guesses','others_solved','others_attempted','hints_requested','hints_viewed','soft_checks','definitive_checks']];
+ for(const p of summary.students)rows.push([p.name,p.submitted,p.teacherStatus,p.peersDecodedMessage,p.peerGuessesReceived,p.othersSolved,p.othersAttempted,p.hintsRequested,p.hintsViewed,p.softChecks,p.definitiveChecks]);
+ const cell=v=>{let t=String(v);if(/^(?:\s*[=+@-]|[\t\r])/.test(t))t="'"+t;return '"'+t.replaceAll('"','""')+'"';};
+ return '\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n');
+}
+export function cryptoArchiveReport(row){
+ const g=row.game?.crypto;if(!g?.id)return null;
+ return {archiveId:row.id,missionId:g.id,savedAt:row.saved_at,openedAt:g.openedAt,endedAt:g.endedAt||g.revealedAt||null,status:g.status==='revealed'?'finished':'archived_before_end',archiveReason:row.game.archiveReason,summary:g.finalSummary||cryptoSummary(g,row.game.pairs?.players||[]),results:cryptoResults(g)};
+}
+export function cryptoArchiveList(rows){
+ const seen=new Set(),items=[];
+ for(const row of rows){const report=cryptoArchiveReport(row);if(!report||seen.has(report.missionId))continue;seen.add(report.missionId);items.push({archiveId:report.archiveId,missionId:report.missionId,savedAt:report.savedAt,openedAt:report.openedAt,endedAt:report.endedAt,status:report.status,submitted:report.summary.submitted,teacherMatched:report.summary.teacherMatched,peerCorrect:report.summary.peerCorrect,peerGuesses:report.summary.peerGuesses});}
+ return {items};
 }
 export function cryptoCsv(results){
  const rows=[['author','ciphertext','rule','actual_plaintext','decoder','guess','correct','passed','hint_requested','hint_used','soft_checks','definitive_checks']];
@@ -40,7 +65,7 @@ export function handleCrypto(input,req,{now=Date.now()}={}){
  const fresh=()=>({id:pairSecret(),status:'open',openedAt:now,revealedAt:null,entries:{},guesses:{},teacherAttempts:{},hints:{},hintRequests:{},checks:{}});
  const owner=(g,p)=>{const entry=g.entries[p.id];if(entry&&entry.name!==p.name)fail('The class roster changed. Ask your teacher to start a new mission.',409);return entry;};
  function view(g,p=null,isTeacher=false){
-  const entries=records(g),out={id:g.id,status:g.status,submitted:entries.length,total:state.pairs?.players.length||0,openedAt:g.openedAt,revealedAt:g.revealedAt,serverNow:now,checkLimits:CRYPTO_CHECK_LIMITS};
+  const entries=records(g),out={id:g.id,status:g.status,submitted:entries.length,total:state.pairs?.players.length||0,openedAt:g.openedAt,revealedAt:g.revealedAt,endedAt:g.endedAt||g.revealedAt||null,serverNow:now,checkLimits:CRYPTO_CHECK_LIMITS};
   if(p){const entry=owner(g,p);out.me={id:p.id,name:p.name,entry:entry?{...snapshot(entry,g),rule:entry.rule,plaintext:entry.plaintext}:null};
    if(entry||g.status==='revealed')out.messages=entries.filter(e=>e.studentId!==p.id).map(e=>{const key=`${p.id}:${e.studentId}`,request=g.hintRequests?.[key],hint=g.hints?.[e.studentId];return {...snapshot(e,g),myGuess:g.guesses[key]?.guess??null,hint:{requested:!!request,available:!!hint?.text,text:request?.viewedAt?hint?.text||null:null},checks:checkView(g,key)};});
    else out.messages=[];
@@ -49,9 +74,9 @@ export function handleCrypto(input,req,{now=Date.now()}={}){
   if(isTeacher){out.reviewed=entries.filter(e=>g.teacherAttempts[e.studentId]).length;
    out.entries=entries.map(e=>({...snapshot(e,g),rule:e.rule,attempt:g.teacherAttempts[e.studentId]||null,hint:g.hints?.[e.studentId]?.text||'',hintRequests:Object.values(g.hintRequests||{}).filter(r=>r.targetId===e.studentId).length}));
    out.guessCount=Object.keys(g.guesses).length;out.hintRequestCount=Object.keys(g.hintRequests||{}).length;out.checkCount=Object.values(g.checks||{}).reduce((n,list)=>n+list.length,0);
-   out.seats=(state.pairs?.players||[]).map(p=>({id:p.id,name:p.name,submitted:!!g.entries[p.id]&&g.entries[p.id].name===p.name}));
+   out.seats=(state.pairs?.players||[]).map(p=>({id:p.id,name:p.name,submitted:!!g.entries[p.id]&&g.entries[p.id].name===p.name,reviewed:!!g.teacherAttempts[p.id],guesses:Object.values(g.guesses).filter(a=>a.studentId===p.id).length}));
   }
-  if(g.status==='revealed')out.results=cryptoResults(g);
+  if(g.status==='revealed'){out.results=cryptoResults(g);out.summary=g.finalSummary||cryptoSummary(g,state.pairs?.players||[]);}
   return out;
  }
  try{
@@ -98,7 +123,7 @@ export function handleCrypto(input,req,{now=Date.now()}={}){
   }
   if(route==='GET /api/crypto/export'){
    const g=game();if(g.status!=='revealed')fail('Declassify the mission before exporting its answers.',409);
-   const results=cryptoResults(g);return url.searchParams.get('type')==='csv'?response(cryptoCsv(results),200,'text/csv'):response({game:'Cryptology / Operation Cipher',id:g.id,revealedAt:g.revealedAt,matching:'Case, whitespace and punctuation ignored; symbols and letters retained.',results});
+   const results=cryptoResults(g),summary=g.finalSummary||cryptoSummary(g,state.pairs?.players||[]);if(url.searchParams.get('type')==='summary')return response(cryptoSummaryCsv(summary),200,'text/csv');return url.searchParams.get('type')==='csv'?response(cryptoCsv(results),200,'text/csv'):response({summary,openedAt:g.openedAt,endedAt:g.endedAt||g.revealedAt,game:'Cryptology / Operation Cipher',id:g.id,revealedAt:g.revealedAt,matching:'Case, whitespace and punctuation ignored; symbols and letters retained.',results});
   }
   if(req.method==='POST'&&url.pathname.startsWith('/api/crypto/admin/')){
    const action=url.pathname.split('/').at(-1);
@@ -116,13 +141,19 @@ export function handleCrypto(input,req,{now=Date.now()}={}){
     g.teacherAttempts[b.targetId]={guess,passed:!!b.passed,savedAt:now};
    }else if(action==='lock'){
     if(g.status!=='open')fail('Message submission is already closed.',409);g.status='locked';
+   }else if(action==='end'){
+    if(g.status==='revealed')return response({ok:true});
+    const ids=records(g).map(e=>e.studentId);
+    if(!Array.isArray(b.entryIds)||JSON.stringify([...b.entryIds].sort((a,b)=>a-b))!==JSON.stringify(ids))fail('A new message arrived. Check the updated submission list and press End assessment again.',409);
+    g.status='revealed';g.revealedAt=now;g.endedAt=now;g.finalSummary=cryptoSummary(g,state.pairs?.players||[]);
+    archive={...structuredClone(state),archiveReason:'cryptology-ended'};
    }else if(action==='reveal'){
     if(g.status==='revealed')return response({ok:true});
     const entries=records(g);if(!entries.length)fail('Wait for at least one message before revealing.',409);
     const ids=entries.map(e=>e.studentId);
     if(!Array.isArray(b.entryIds)||JSON.stringify([...b.entryIds].sort((a,b)=>a-b))!==JSON.stringify(ids))fail('A new message arrived. Review every current message before declassifying.',409);
     if(entries.some(e=>!g.teacherAttempts[e.studentId]))fail('Enter a plaintext attempt or choose “Could not decode” for every message first.',409);
-    g.status='revealed';g.revealedAt=now;
+    g.status='revealed';g.revealedAt=now;g.finalSummary=cryptoSummary(g,state.pairs?.players||[]);
    }else if(action==='reset'){
     if(b.confirm!=='RESET')fail('Type RESET to archive this mission and start another.');
     archive={...structuredClone(state),archiveReason:'cryptology-reset'};state.crypto=fresh();
