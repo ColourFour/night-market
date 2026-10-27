@@ -31,3 +31,12 @@ test('Every cipher view preserves explicit rows and indentation, including a fir
  const compose=cryptoView({...student,me:{...student.me,entry:null}},'student');assert.match(compose,/name="ciphertext" wrap="off" rows="5"/);
  assert.match(compose,/Line breaks and spaces are kept exactly/);
 });
+test('Hint/check UI exposes teacher publishing and student allowances, with escaped clues and a read-only confirmed answer',()=>{
+ const message={studentId:1,name:'Other',ciphertext:'CODE',myGuess:'ANSWER',hint:{requested:true,available:true,text:'Hint <script>'},checks:{softRemaining:0,definitiveRemaining:0,solved:true,history:[{kind:'soft',guess:'Guess <img>',feedback:'Very close'},{kind:'definitive',guess:'ANSWER',correct:true}]}};
+ const h=cryptoView({id:'abcdef',status:'open',submitted:2,total:2,me:{id:0,name:'Me',entry:{rule:'r',ciphertext:'c',plaintext:'p'}},messages:[message]},'student');
+ assert.match(h,/Hint &lt;script&gt;/);assert.match(h,/Guess &lt;img&gt;/);assert.doesNotMatch(h,/<script>|<img>/);assert.match(h,/Correct answer confirmed and saved/);assert.match(h,/readonly/);assert.match(h,/data-crypto-check="soft"[^>]*disabled/);assert.match(h,/data-crypto-check="definitive"[^>]*disabled/);
+ assert.deepEqual(cryptoPayload('crypto-guess-1',{targetId:'1',guess:'Hi',checkKind:'soft'}),{path:'check',body:{targetId:1,guess:'Hi',kind:'soft'}});
+ assert.deepEqual(cryptoPayload('crypto-hint-1',{targetId:'1',hint:'Clue'}),{path:'admin/hint',body:{targetId:1,hint:'Clue'}});
+ const teacher=cryptoView({id:'abcdef',status:'open',submitted:1,total:1,reviewed:0,guessCount:0,seats:[],hintRequestCount:1,checkCount:1,entries:[{studentId:1,name:'Other',rule:'RULE',ciphertext:'CODE',hint:'Teacher clue',hintRequests:1,attempt:null}]},'teacher');
+ assert.match(teacher,/crypto-hint-1/);assert.match(teacher,/1 REQUEST/);assert.match(teacher,/Update published hint/);
+});

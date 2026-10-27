@@ -1,7 +1,7 @@
 import {handleFrontier,adjacent} from './frontier-core.js?v=solo1';
 import {handleZones} from './zones-core.js?v=open-entry1';
 import {handlePairs,pairSecret} from './pairs-core.js?v=open-entry1';
-import {handleCrypto} from './crypto-core.js?v=layout1';
+import {handleCrypto} from './crypto-core.js?v=hints1';
 import {API_BASE} from './config.js';
 export const demo=new URLSearchParams(location.search).get('demo')==='1';
 const KEY='contribute-take-rehearsal-v1';

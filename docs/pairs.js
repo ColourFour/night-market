@@ -1,9 +1,9 @@
-import {cryptoView,cryptoPayload,cryptoInput} from './crypto-ui.js?v=layout1';
+import {cryptoView,cryptoPayload,cryptoInput} from './crypto-ui.js?v=hints1';
 import {tutorialView,tutorialActive,tutorialAction,tutorialClock} from './frontier-tutorial.js?v=solo1';
 import {frontierView,frontierLocal,frontierPayload,frontierClock,frontierInput,clearFrontier} from './frontier-ui.js?v=solo1';
 import {zonesView,zonesLocal,zonesPayload,updateZonesTotals,zonesAfterRender,clearZones} from './zones-ui.js?v=district-light1';
 import {outcome} from './pairs-feedback.js?v=practice2';
-import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,simulateCrypto,resetDemo} from './pairs-transport.js?v=layout1';
+import {api,demo,saved,demoToken,simulate,simulateZones,simulateFrontier,simulateCrypto,resetDemo} from './pairs-transport.js?v=hints1';
 import {session,device} from './browser-storage.js?v=lobby1';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let role='student',token=device.getItem('pairs-student')||session.getItem('pairs-student')||'',state=null,code='',roster=[],busy=false,refreshing=false,generation=0,lastView='',clockOffset=0,lobbyLoaded=false,lobbyError='',lastLobbyPoll=0,resetVisible=false,selectedMode='menu';
@@ -73,7 +73,7 @@ function render(){
  const forms=new Map();document.querySelectorAll('form').forEach(f=>{if(f.id==='frontier-order')return;forms.set(f.id,Array.from(f.elements).filter(e=>e.name&&e.type!=='file').map(e=>[e.name,e.type,e.value,e.checked]));});
  const opened=[...document.querySelectorAll('details[open][data-key]')].map(e=>e.dataset.key);
  $('#app').innerHTML=!state?home():selectedMode==='menu'?gameMenu():`<div class="game-nav">${button('chooseGame','← Choose a game',true)}<span>${role==='teacher'?'Teacher controls':esc(state.me?.name||'')}</span></div>`+(selectedMode==='crypto'?cryptoView(state,role)+(role==='student'?leaveButton():''):selectedMode==='frontier'?soloLink()+tutorialView(state,role,token)+(tutorialActive()?'':frontierView(state,role))+(role==='student'?leaveButton():''):selectedMode==='zones'?zonesView(state,role)+(role==='student'?leaveButton():''):role==='teacher'?(state.empty?create():teacher()):student());
- for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
+ for(const f of document.querySelectorAll('form'))for(const [name,type,value,checked] of forms.get(f.id)||[]){const el=Array.from(f.elements).find(e=>e.name===name&&(type!=='radio'||e.value===value));if(el?.readOnly)continue;if(el&&!(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===value&&!o.disabled))){el.value=value;if(type==='radio'||type==='checkbox')el.checked=checked;}}
  document.querySelectorAll('details[data-key]').forEach(d=>{if(opened.includes(d.dataset.key))d.open=true;});
  $('#demo-tools').innerHTML=demo?`<div class="demo-bar"><div><strong>REHEARSAL</strong><small>${saved?'Simulated classmates':'Temporary · keep this tab open'}</small></div><div class="actions">${button('demoTeacher','Teacher view',role!=='teacher')}${button('demoStudent','Play as Student 1',role!=='student')}${selectedMode==='frontier'&&tutorialActive()?'':button('simulate','Simulate classmates',true)}${button('demoReset','Restart rehearsal',true)}<a class="button secondary" href="./">Exit</a></div></div>`:'';
  updateClock();updateZonesTotals();zonesAfterRender();if(selectedMode==='crypto')cryptoInput(state);
@@ -112,7 +112,7 @@ function download(name,value,type='application/json'){const a=document.createEle
 document.addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;busy=true;const f=e.target,id=f.getAttribute('id'),b=Object.fromEntries(new FormData(f));
  try{
-  if(id.startsWith('crypto-')){const request=cryptoPayload(id,b);if(request){await api('crypto/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
+  if(id.startsWith('crypto-')){const request=cryptoPayload(id,{...b,checkKind:e.submitter?.dataset.cryptoCheck});if(request){await api('crypto/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
   else if(id.startsWith('frontier-')){const request=frontierPayload(id,b);if(request){await api('frontier/'+request.path,{...request.body,id:state.id,roundId:state.roundId},token);await refresh(true);}}
   else if(id==='zones-inspect'){zonesLocal('zone-inspect',{id:b.student},state);render();}
   else if(id.startsWith('zones-')){const request=zonesPayload(id,b);if(request){await api('zones/'+request.path,{...request.body,id:state.id},token);await refresh(true);}}
@@ -132,6 +132,7 @@ document.addEventListener('click',async e=>{
   else if(action.startsWith('crypto-')){
    const kind=action.slice(7);
    if(['csv','json'].includes(kind))download('Cryptology-results.'+kind,await api('crypto/export?type='+kind,undefined,token),kind==='csv'?'text/csv':'application/json');
+   else if(kind==='hint'){await api('crypto/hint',{id:state.id,targetId:Number(b.dataset.id)},token);await refresh(true);}
    else if(kind==='pass'){await api('crypto/admin/decode',{id:state.id,targetId:Number(b.dataset.id),passed:true},token);const input=document.querySelector('#crypto-decode-'+b.dataset.id+' [name=guess]');if(input)input.value='';await refresh(true);}
    else{await api('crypto/admin/'+kind,{id:state.id,...(kind==='reveal'?{entryIds:state.entries.map(e=>e.studentId)}:{})},token);await refresh(true);}
   }

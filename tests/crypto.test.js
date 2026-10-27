@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {handleCrypto,plaintextMatches,cryptoResults,cryptoCsv} from '../docs/crypto-core.js';
+import {handleCrypto,plaintextMatches,cryptoResults,cryptoCsv,softFeedback} from '../docs/crypto-core.js';
 import {handleClassroom,classDate,savedDayReport,savedDaysCsv} from '../docs/classroom-core.js';
 import {pairSecret} from '../docs/pairs-core.js';
 const now=Date.parse('2026-10-23T03:00:00Z');
@@ -17,7 +17,7 @@ test('Students must submit first; peer answers/rules and verdicts stay server-si
  a.post('guess',{targetId:1,guess:'ACTUAL SECRET 1'},0,403);
  a.send(0);a.post('guess',{targetId:1,guess:'My guessed message'},0);
  const v=a.call('state',undefined,0).body;
- assert.equal(v.me.entry.plaintext,'ACTUAL SECRET 0');assert.equal(v.messages.length,1);assert.deepEqual(Object.keys(v.messages[0]).sort(),['ciphertext','myGuess','name','studentId','submittedAt'].sort());
+ assert.equal(v.me.entry.plaintext,'ACTUAL SECRET 0');assert.equal(v.messages.length,1);assert.deepEqual(Object.keys(v.messages[0]).sort(),['ciphertext','myGuess','name','studentId','submittedAt','checks','hint'].sort());
  assert.doesNotMatch(JSON.stringify(v.messages),/Secret rule|ACTUAL SECRET|correct|teacher|passed/);
  assert.equal(v.messages[0].myGuess,'My guessed message');
  const other=a.call('state',undefined,1).body;assert.doesNotMatch(JSON.stringify(other),/My guessed message/);
@@ -95,4 +95,73 @@ test('Cipher grids retain exact whitespace across submission, peer and teacher v
  assert.equal(a.call('state',undefined,1).body.results[0].ciphertext,ciphertext);
  assert.equal(a.call('export?type=json',undefined,'teacher').body.results[0].ciphertext,ciphertext);
  assert.ok(a.call('export?type=csv',undefined,'teacher').body.includes(ciphertext));
+});
+test('Teacher hints require a request, record viewing separately, and never expose the rule or answer',()=>{
+ const a=app();a.send(0);a.send(1);a.send(2);
+ assert.deepEqual(a.post('hint',{targetId:1},0).body,{ok:true,hint:null,waiting:true});
+ assert.equal(a.get().crypto.hintRequests['0:1'].viewedAt,null);
+ const t=a.call('teacher').body;assert.equal(t.entries[1].hintRequests,1);assert.equal(t.hintRequestCount,1);
+ a.post('admin/hint',{targetId:1,hint:'Try reading from right to left.'},0,401);
+ a.post('admin/hint',{targetId:1,hint:'  Look for a repeating pattern.  '});
+ let v=a.call('state',undefined,0).body.messages.find(e=>e.studentId===1);
+ assert.deepEqual(v.hint,{requested:true,available:true,text:null});assert.doesNotMatch(JSON.stringify(v),/Secret rule|ACTUAL SECRET|Look for/);
+ assert.equal(a.post('hint',{targetId:1},0).body.hint,'Look for a repeating pattern.');
+ v=a.call('state',undefined,0).body.messages.find(e=>e.studentId===1);assert.equal(v.hint.text,'Look for a repeating pattern.');assert.ok(a.get().crypto.hintRequests['0:1'].viewedAt);
+ assert.equal(a.call('state',undefined,2).body.messages.find(e=>e.studentId===1).hint.text,null);
+ a.post('hint',{targetId:1},0);assert.equal(Object.keys(a.get().crypto.hintRequests).length,1);assert.equal(a.get().crypto.checks['0:1'],undefined);
+ a.post('admin/hint',{targetId:1,hint:'Updated teacher clue.'});assert.equal(a.call('state',undefined,0).body.messages.find(e=>e.studentId===1).hint.text,'Updated teacher clue.');
+});
+test('Soft feedback gives only broad closeness bands; exact and near-exact answers share a band',()=>{
+ assert.equal(softFeedback('MEET AT NOON!','meetatnoon'),'Very close');assert.equal(softFeedback('MEET AT NOOM','MEET AT NOON'),'Very close');
+ assert.equal(softFeedback('MEET','MEETAT'),'Partly close');assert.equal(softFeedback('ZZZZ','HELLO'),'Try a different approach');
+ assert.equal(softFeedback('你好世界','你好世界'),'Very close');
+ const a=app();a.send(0);a.send(1);let r=a.post('check',{targetId:1,kind:'soft',guess:'ACTUAL SECRET 1'},0).body;
+ assert.equal(r.result.feedback,'Very close');assert.ok(!('correct' in r.result));assert.ok(!('correct' in r.checks.history[0]));assert.ok(!('distance' in r.result));assert.ok(!('similarity' in r.result));
+ assert.equal(r.checks.softRemaining,1);assert.equal(r.checks.definitiveRemaining,1);assert.equal(r.checks.solved,false);
+ assert.doesNotMatch(JSON.stringify(a.call('teacher').body),/ACTUAL SECRET|Very close/);
+ assert.deepEqual(a.call('state',undefined,1).body.messages[0].checks.history,[]);
+});
+test('Each student gets two soft and one definitive check per message; saves and duplicate retries do not use extra checks',()=>{
+ const a=app();a.send(0);a.send(1);a.send(2);
+ a.post('check',{targetId:1,kind:'soft',guess:'aaaa'},0);a.post('check',{targetId:1,kind:'soft',guess:'AAAA!'},0);
+ assert.equal(a.get().crypto.checks['0:1'].length,1);
+ a.post('check',{targetId:1,kind:'soft',guess:'bbbb'},0);
+ a.post('check',{targetId:1,kind:'soft',guess:'cccc',limit:99},0,409);
+ a.post('check',{targetId:1,kind:'definitive',guess:'wrong'},0);
+ a.post('check',{targetId:1,kind:'definitive',guess:'ACTUAL SECRET 1'},0,409);
+ a.post('guess',{targetId:1,guess:'new unchecked final guess'},0);
+ const v=a.call('state',undefined,0).body.messages.find(e=>e.studentId===1);
+ assert.equal(v.checks.softRemaining,0);assert.equal(v.checks.definitiveRemaining,0);assert.equal(v.myGuess,'new unchecked final guess');assert.equal(v.checks.history.length,3);
+ assert.equal(a.post('check',{targetId:2,kind:'soft',guess:'another'},0).body.checks.softRemaining,1);
+ assert.equal(a.post('check',{targetId:1,kind:'soft',guess:'another'},2).body.checks.softRemaining,1);
+ const state=a.get(),token=state.pairs.players[0].token;
+ const resumed=handleClassroom(state,{url:'/api/crypto/state',method:'GET',headers:{authorization:'Bearer '+token}},{now:now+14*86400000});
+ assert.equal(resumed.status,200);assert.equal(resumed.body.messages.find(e=>e.studentId===1).checks.softRemaining,0);assert.equal(resumed.archive,null);
+});
+test('Definitive success is clear, saves and protects the correct answer; hints and checks appear in results and exports',()=>{
+ const a=app();a.send(0);a.send(1);a.post('admin/hint',{targetId:1,hint:'Teacher clue'});a.post('hint',{targetId:1},0);
+ a.post('check',{targetId:1,kind:'soft',guess:'Near actual secret'},0);
+ const r=a.post('check',{targetId:1,kind:'definitive',guess:'actual secret 1!'},0).body;assert.equal(r.result.correct,true);assert.equal(r.checks.solved,true);
+ a.post('guess',{targetId:1,guess:'wrong overwrite'},0,409);a.post('check',{targetId:1,kind:'definitive',guess:'ACTUALSECRET1'},0);assert.equal(a.get().crypto.checks['0:1'].length,2);
+ a.post('admin/decode',{targetId:0,passed:true});a.post('admin/decode',{targetId:1,passed:true});a.post('admin/reveal',{entryIds:[0,1]});
+ const e=a.call('state',undefined,0).body.results[1];assert.equal(e.hint,'Teacher clue');assert.equal(e.hintRequests.length,1);assert.equal(e.peers[0].hintUsed,true);assert.equal(e.peers[0].checksUsed,2);assert.equal(e.peers[0].correct,true);
+ const csv=a.call('export?type=csv').body;assert.match(csv,/hint_requested/);assert.match(csv,/soft_checks/);
+ for(const path of ['hint','check'])a.post(path,{targetId:1,kind:'soft',guess:'x'},0,409);a.post('admin/hint',{targetId:1,hint:'late'},'teacher',409);
+});
+test('Legacy missions gain features without reset; stale, invalid and unauthorized checks do not spend allowances',()=>{
+ const a=app();a.send(0);a.send(1);delete a.get().crypto.hints;delete a.get().crypto.checks;delete a.get().crypto.hintRequests;
+ a.post('check',{targetId:1,kind:'invalid',guess:'x'},0,400);a.post('check',{targetId:0,kind:'soft',guess:'x'},0,400);a.post('check',{targetId:1,kind:'soft',guess:'!!!'},0,400);
+ a.call('check',{id:'old',targetId:1,kind:'soft',guess:'x'},0,409);a.post('check',{targetId:1,kind:'soft',guess:'x'},2,403);
+ a.post('check',{targetId:1,kind:'soft',guess:'x'},'teacher',401);assert.equal(a.get().crypto.checks,undefined);
+ a.post('admin/lock');assert.equal(a.post('check',{targetId:1,kind:'soft',guess:'x'},0).body.checks.softRemaining,1);a.post('hint',{targetId:1},0);
+ const old=a.get().crypto.id;a.post('admin/reset',{confirm:'RESET'});assert.notEqual(a.get().crypto.id,old);assert.deepEqual(a.get().crypto.checks,{});assert.deepEqual(a.get().crypto.hintRequests,{});
+});
+test('Concurrent unique check requests cannot exceed either server-side allowance',async()=>{
+ const a=app();a.send(0);a.send(1);let state=a.get(),version=0;const id=state.crypto.id,token=state.pairs.players[0].token;
+ async function check(kind,guess){for(let attempt=0;attempt<30;attempt++){
+  const expected=version,r=handleCrypto(state,{url:'/api/crypto/check',method:'POST',body:{id,targetId:1,kind,guess},headers:{authorization:'Bearer '+token}},{now});
+  await new Promise(resolve=>setTimeout(resolve,attempt%3));if(version!==expected)continue;if(r.changed){state=r.state;version++;}return r;
+ }throw Error('Commit retries exhausted');}
+ const responses=await Promise.all([check('soft','one'),check('soft','two'),check('soft','three'),check('definitive','four'),check('definitive','five')]);
+ assert.equal(responses.filter(r=>r.status===200).length,3);assert.equal(state.crypto.checks['0:1'].filter(c=>c.kind==='soft').length,2);assert.equal(state.crypto.checks['0:1'].filter(c=>c.kind==='definitive').length,1);
 });

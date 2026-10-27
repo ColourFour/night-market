@@ -9,16 +9,23 @@ test('Cryptology rehearsal connects student submissions, peer guesses, teacher r
  const interval=globalThis.setInterval,Form=globalThis.FormData;globalThis.setInterval=()=>0;
  try{
   await import('../docs/pairs.js');await new Promise(r=>setTimeout(r,10));
-  const transport=await import('../docs/pairs-transport.js?v=layout1');
+  const transport=await import('../docs/pairs-transport.js?v=hints1');
   const teacher=()=>transport.api('crypto/teacher',undefined,transport.demoToken('teacher'));
   const html=()=>elements.get('#app').innerHTML;
   const click=async(action,extra={})=>listeners.get('click')({target:{closest:()=>({dataset:{action,...extra}})}});
-  const submit=async(id,data)=>{globalThis.FormData=class{constructor(){return new Map(Object.entries(data));}};await listeners.get('submit')({preventDefault(){},target:{getAttribute:()=>id}});};
+  const submit=async(id,data,kind)=>{globalThis.FormData=class{constructor(){return new Map(Object.entries(data));}};await listeners.get('submit')({preventDefault(){},submitter:kind?{dataset:{cryptoCheck:kind}}:null,target:{getAttribute:()=>id}});};
   assert.match(html(),/Cryptology/);await click('modeCrypto');assert.match(html(),/Open Cryptology mission/);
   await click('crypto-open');await click('demoStudent');assert.match(html(),/name="rule"/);assert.doesNotMatch(html(),/crypto-guess-/);
   await submit('crypto-submit',{rule:'Reverse it.',ciphertext:'NOON TA TEEM',plaintext:'MEET AT NOON'});
   assert.match(html(),/Your dispatch is sealed/);await click('simulate');assert.match(html(),/crypto-guess-1/);assert.doesNotMatch(html(),/Shift each letter/);
-  await submit('crypto-guess-1',{targetId:'1',guess:'MEET AT NOON'});assert.match(html(),/Guess saved · verdict sealed/);
+  await submit('crypto-guess-1',{targetId:'1',guess:'MEET AT NOON'});assert.match(html(),/Guess saved · use a check for feedback/);
+  await click('crypto-hint',{id:'1'});assert.match(html(),/Hint requested · waiting for teacher/);
+  await click('demoTeacher');assert.equal((await teacher()).entries[1].hintRequests,1);
+  await submit('crypto-hint-1',{targetId:'1',hint:'Look at how the letters shift.'});
+  await click('demoStudent');assert.match(html(),/Reveal teacher hint/);await click('crypto-hint',{id:'1'});assert.match(html(),/Look at how the letters shift/);
+  await submit('crypto-guess-1',{targetId:'1',guess:'MEET AT MOON'},'soft');assert.match(html(),/Very close/);
+  await submit('crypto-guess-1',{targetId:'1',guess:'MEET AT NOON'},'soft');assert.match(html(),/Soft check · 0 left/);
+  await submit('crypto-guess-1',{targetId:'1',guess:'MEET AT NOON'},'definitive');assert.match(html(),/Correct answer confirmed and saved/);
   await click('demoTeacher');let s=await teacher();assert.equal(s.submitted,13);assert.ok(s.entries.every(e=>!('plaintext' in e)));assert.match(html(),/RULE \/ READ THIS FIRST/);
   await submit('crypto-decode-0',{targetId:'0',guess:'MEET AT NOON'});
   for(const e of s.entries.slice(1))await click('crypto-pass',{id:String(e.studentId)});
